@@ -23,6 +23,17 @@ const secondaryStyle = {
   color: "var(--color-txt-dim)",
 } as const;
 
+// 三家 OpenAI 兼容接口的 Base URL / Model 预设（不含 key，key 永远由用户自填）。
+const PROVIDER_PRESETS = [
+  { label: "GPT", baseUrl: "https://api.openai.com/v1/chat/completions", model: "gpt-4o-mini" },
+  {
+    label: "Qwen",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+    model: "qwen-plus",
+  },
+  { label: "DeepSeek", baseUrl: "https://api.deepseek.com/chat/completions", model: "deepseek-chat" },
+] as const;
+
 type TestState =
   | { kind: "idle" }
   | { kind: "busy" }
@@ -128,6 +139,28 @@ export default function SettingsPage() {
         <h2 className="text-sm font-medium" style={{ color: "var(--color-txt)" }}>
           AI 复盘模型（OpenAI 兼容接口）
         </h2>
+
+        {/* 一键填 Base URL / Model；key 仍需自填。任选其一即可。 */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs" style={dim}>
+            快速选择：
+          </span>
+          {PROVIDER_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => {
+                setBaseUrl(p.baseUrl);
+                setModel(p.model);
+                setTest({ kind: "idle" });
+              }}
+              className={secondaryBtn}
+              style={secondaryStyle}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
 
         <div>
           <label className={labelCls} style={dim}>
