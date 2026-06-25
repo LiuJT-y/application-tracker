@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { buildTranscript, type ReviewFormInput } from "@/lib/types";
 import { parseReview } from "@/lib/ai/reviewParser";
 import { overrideFromHeaders } from "@/lib/ai/client";
+import { assembleResumeText } from "@/lib/resume/assemble";
 import { getCurrentUserId, unauthorized } from "@/lib/auth/session";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -49,9 +50,32 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   // 用户设置页填的 LLM 配置随请求头带来（用完即弃，不入库不打日志）；没填则落 env 兜底。
   const override = overrideFromHeaders(req);
 
+  // 简历注入（纯增量）：优先该投递绑定的版本 → 否则我的默认版本 → 都没有则不注入（维持原行为）。
+  let resumeText: string | null = null;
+  let versionId = app.resumeVersionId;
+  if (!versionId) {
+    const def = await prisma.resumeVersion.findFirst({
+      where: { userId, isDefault: true },
+      select: { id: true },
+    });
+    versionId = def?.id ?? null;
+  }
+  if (versionId) {
+    resumeText = await assembleResumeText(versionId, userId);
+  }
+
   let parsed;
   try {
-    parsed = await parseReview(transcript, override);
+    parsed = await parseReview(
+      {
+        transcript,
+        company: app.company,
+        position: app.position,
+        jdText: app.jdText,
+        resumeText,
+      },
+      override
+    );
   } catch (e) {
     return NextResponse.json(
       { error: `AI 复盘失败：${e instanceof Error ? e.message : String(e)}` },

@@ -15,21 +15,34 @@ Next.js 16 (App Router) · React 19 · TypeScript · Prisma 6 + Neon Postgres ·
 ## 项目结构
 
 ```
-prisma/schema.prisma          5 张核心表 + 枚举
+prisma/schema.prisma          8 张核心表 + 枚举（含 ResumeItem 素材库 / ResumeVersionItem 关联表 / ResumeFile PDF 字节）
 prisma/seed.ts                示例数据
 lib/prisma.ts                 Prisma client 单例
-lib/types.ts                  状态/渠道/优先级元数据 + Application 类型（前端与插件共用)
-app/api/applications/         GET 列表 / POST 新建（POST 是插件入口）
-app/api/applications/[id]/    PATCH 更新（换状态自动写时间线）/ DELETE
-app/api/applications/[id]/reviews/  GET 列复盘 / POST 提交复盘表单（调模型链）
+lib/types.ts                  状态/渠道/优先级元数据 + Application / ResumeItem / ResumeVersionSummary 类型
+lib/insights.ts               投递「到达过的阶段」判定（reachedIndex）—— insights 与版本面试率共用
+lib/resume/assemble.ts        assembleResumeText(versionId,userId)：版本条目→分块纯文本简历（喂 AI）
+app/api/applications/         GET 列表（平铺 resumeVersionName）/ POST 新建（POST 是插件入口）
+app/api/applications/[id]/    PATCH 更新（换状态写时间线 / resumeVersionId 归属校验）/ DELETE
+app/api/applications/[id]/reviews/  GET 列复盘 / POST 提交复盘（按「关联版本→默认版本」注入简历后调模型链）
 app/api/reviews/[id]/         DELETE 单条复盘
+app/api/resume-items/         GET 列条目（?type= 过滤）/ POST 新建（按 userId 隔离）
+app/api/resume-items/[id]/    PATCH 更新 / DELETE（findFirst/deleteMany {id,userId} 防越权）
+app/api/resume-versions/      GET 列版本（带条目数/关联投递数/面试率）/ POST 新建（写 ResumeVersionItem）
+app/api/resume-versions/[id]/ PATCH 改名/备注/条目顺序/设默认（事务）/ DELETE（先解绑投递再删）
+app/api/resume-versions/[id]/pdf/  POST 上传/替换 PDF（multipart，校验 pdf+≤4MB，存 ResumeFile.data Bytes）/ DELETE / GET（唯一读字节，inline 预览）
 lib/ai/client.ts              模型链：AI_PROVIDER_ORDER 链路 fallback（gpt/qwen/deepseek）
-lib/ai/reviewParser.ts        拼 prompt + 健壮解析 8 维度评分（仿 PreferenceParser）
+lib/ai/reviewParser.ts        拼 prompt + 健壮解析 8 维度评分；带简历时启用富提示词（唯一活的复盘路径）
 app/board/page.tsx            看板页
 app/review/page.tsx           AI 面试复盘页
-components/KanbanBoard.tsx    拖拽逻辑（dnd-kit）+ 乐观更新
-components/ApplicationCard.tsx
-components/AddApplicationDialog.tsx
+app/resumes/page.tsx          简历管理：tab 容器（总表 | 简历版本）
+components/ResumeItemsPanel.tsx  总表（素材库）面板：表格 + 类型筛选 + 增删改
+components/ResumeItemDialog.tsx  简历条目新增/编辑弹窗（赛博 HUD 风）
+components/ResumeVersionsPanel.tsx  简历版本面板：版本卡片（统计 + 默认徽章 + PDF 区块）+ 增删改 + 设默认
+components/ResumeVersionDialog.tsx  新建/编辑版本弹窗：条目多选 + dnd-kit 拖拽排序 + 设默认
+components/ResumePdfControl.tsx  版本卡片上的 PDF 上传/预览/替换/删除（基础版，不翻页）
+components/KanbanBoard.tsx    拖拽逻辑（dnd-kit）+ 乐观更新 + 新建/编辑岗位弹窗
+components/ApplicationCard.tsx  含编辑按钮 + 展示所用简历版本名
+components/AddApplicationDialog.tsx  新建/编辑岗位（含简历版本下拉，默认版本预填）
 components/ReviewPanel.tsx    复盘结构化表单 + 评分展示 + 历史列表
 
 —— 多用户 + 用户自带 LLM key ——
@@ -50,6 +63,11 @@ app/api/ai/test/              测试 LLM 连接
 - 转化漏斗、渠道对比**不要单独建表**,对 `Application` 做聚合查询。
 - 数据洞察(漏斗/面试率)按**当前面板状态**算,不翻 `StatusEvent` 历史取最大值——否则拖错又拖回的中间态会被记上。REJECTED 用 `currentStage`(第几次面试)还原面试进度;没往后记录的默认就当挂在当前这步。见 `app/api/insights/route.ts` 的 `reachedIndex`。
 - 状态每次变化都要写一条 `StatusEvent`(PATCH 接口已经在做)。
+- **简历 ↔ 投递的关联只在看板侧设置**(新建/编辑岗位弹窗的「简历版本」下拉),写入 `Application.resumeVersionId`;简历管理页只读展示版本统计,不在那里给岗位分配简历。POST/PATCH `applications` 都要校验 `resumeVersionId` 归属当前用户(传别人的版本 → POST 置 null、PATCH 返 404)。
+- **AI 复盘的简历注入是纯增量**:优先级「该投递关联版本 → 当前用户 `isDefault` 版本 → 都没有则不注入」;有简历才用 `assembleResumeText` 拼【候选人简历】块并升级 system prompt;**没关联也没默认版本时复盘行为与改造前逐字一致**(这是红线,改 `reviewParser` 时务必保住)。
+- 复盘只有一条活路径:`reviews/route.ts` → `reviewParser.parseReview` → `client.chatJSON`。别再引入第二套(之前的 `aiService`/`reviewPrompt`/`openaiCompatClient` 死路径已删)。
+- **每用户至多一个默认简历版本**:设默认(POST 带 `isDefault` / PATCH `isDefault:true`)要在同一事务里先把该用户其它版本 `isDefault` 置 false。
+- **简历 PDF 字节存数据库**:放在独立的 `ResumeFile.data`(Prisma `Bytes`,SQLite/Postgres 双部署通用,**别用 Postgres 专有类型**)。红线:除下载接口 `GET .../pdf` 外,任何版本/列表查询都**绝不能 select `data` 字节**(列表只取 `file{filename,size}`),否则慢且爆内存。上传是写操作,必须校验 `mimeType=application/pdf` 且 `size≤4MB`(Vercel 请求体上限约 4.5MB)。
 - 中文 UI,代码注释中文 OK。
 - **前端风格走赛博 HUD 风(霓虹高亮 + 深空暗背景 + 辉光)**。颜色/字体的唯一真源是 `app/globals.css` 的 `@theme` 块(CSS 变量),组件里别散落硬编码色,统一 `var(--color-…)`:
   - 背景/面板:`--color-space`(页面底)、`--color-panel`(卡片半透明底);描边/网格线 `--color-line`(很淡)。
@@ -69,6 +87,14 @@ app/api/ai/test/              测试 LLM 连接
 - [x] 第三步:AI 面试复盘 —— `/review` 页填结构化表单(岗位/轮次/形式 + 面试问答 + 卡壳 + 自我感受),服务端拼成文本丢给模型链返回结构化 JSON(8 维度评分 + 优势 + 待改进 + 改进计划),存进 `InterviewReview`。沿用 K12 项目里 `PreferenceParser` 那套结构化输出写法,模型优先级链 gpt → Qwen → DeepSeek 兜底(读 `AI_PROVIDER_ORDER`)。
 - [x] 第四步:数据洞察 —— `/insights` 页:漏斗 / 渠道面试率 / 简历版本面试率,聚合查询 + Recharts。看板顶栏有入口。
 - [ ] 之后:岗位详情页(时间线、复盘、日程)、简历版本管理页、日程待办视图。
+
+### 简历管理(分四部分)
+
+- [x] Part 1 简历总表(素材库)—— `ResumeItem` 表把简历拆成可复用条目(PROFILE/EXPERIENCE/PROJECT/EDUCATION/SKILL/OTHER);`/api/resume-items` 增删改查(全部按 userId 隔离);`/resumes` 总表页(表格 + 类型筛选 pill + 新增/编辑/删除弹窗,赛博 HUD 风);看板顶栏「简历管理」入口。只做总表,不碰版本组合 / PDF。
+- [x] Part 2 版本组合 + 看板关联 + AI 复盘接入 —— `ResumeVersion` 加 `isDefault/note/source(COMPOSED|UPLOADED)`;新增有序关联表 `ResumeVersionItem`;`/api/resume-versions` 增删改查(全 userId 隔离,面试率复用 `lib/insights.ts` 的 `reachedIndex`,设默认走事务、删版本先把投递 `resumeVersionId` 置 null);`/resumes` 加 tab(总表|简历版本),版本面板卡片(条目数/关联投递数/面试率/默认徽章)+ 新建/编辑弹窗(条目多选 + dnd-kit 拖拽排序 + 设默认)。**关联在看板侧设置**:`AddApplicationDialog` 双模式(新建/编辑)加简历版本下拉、新建时预填默认版本,卡片加编辑按钮 + 展示所用版本名;`applications` POST/PATCH 校验 `resumeVersionId` 归属。**AI 复盘按「该投递关联版本 → 我的默认版本 → 都没有则不注入」优先级**用 `assembleResumeText` 取纯文本简历,作为【候选人简历】块拼进 user message(超 4000 字截断),`reviewParser` 有简历时升级 system prompt(一致性/讲透度/差距分析);**没简历时行为与之前逐字一致**。顺带删掉无人引用的旧复盘死路径(`aiService.ts`/`reviewPrompt.ts`/`openaiCompatClient.ts`),统一到 `reviewParser`+`client` 一条路径。
+- [x] Part 3a PDF 上传 + 存储 —— 新增 `ResumeFile` 表(`data Bytes` + filename/mimeType/size，`versionId` 唯一一对一，userId 隔离)单独存大字节,**不污染版本常规查询**;`/api/resume-versions/[id]/pdf` 三件套(POST 上传/替换 校验 `application/pdf`+≤4MB、DELETE、GET 流式 inline 预览——GET 是唯一读 `data` 字节的地方);列表接口只取 `file{filename,size}` 元信息、绝不带字节;有 PDF 时把 `source` 标 `UPLOADED`,删后回 `COMPOSED`;版本卡片上传/预览/替换/删除 UI(`ResumePdfControl`)。字节存数据库用 `Bytes`(SQLite/Postgres 通用),不用对象存储、无新环境变量。
+- [ ] Part 3b PDF 翻页画廊 —— 内嵌翻页预览 / 多版本画廊。
+- [ ] Part 4 选条目生成 PDF —— 勾选条目排版导出 PDF。
 
 ## 多用户 + 用户自带 LLM key(已完成)
 

@@ -16,8 +16,14 @@ export async function GET() {
   const apps = await prisma.application.findMany({
     where: { userId },
     orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+    include: { resumeVersion: { select: { name: true } } },
   });
-  return NextResponse.json(apps, { headers: corsHeaders });
+  // 给卡片用：把关联简历版本名平铺成 resumeVersionName。
+  const result = apps.map(({ resumeVersion, ...a }) => ({
+    ...a,
+    resumeVersionName: resumeVersion?.name ?? null,
+  }));
+  return NextResponse.json(result, { headers: corsHeaders });
 }
 
 // POST /api/applications —— 新建一条投递记录。
@@ -38,6 +44,16 @@ export async function POST(req: NextRequest) {
 
   const status = body.status ?? "APPLIED";
 
+  // 只接受属于当前用户的简历版本，否则置 null（杜绝绑到别人的版本）。
+  let resumeVersionId: string | null = null;
+  if (body.resumeVersionId) {
+    const v = await prisma.resumeVersion.findFirst({
+      where: { id: String(body.resumeVersionId), userId },
+      select: { id: true },
+    });
+    resumeVersionId = v?.id ?? null;
+  }
+
   const app = await prisma.application.create({
     data: {
       userId,
@@ -53,6 +69,7 @@ export async function POST(req: NextRequest) {
       jobLink: body.jobLink ?? null,
       jdText: body.jdText ?? null,
       matchScore: body.matchScore ?? null,
+      resumeVersionId,
       appliedAt: status === "APPLIED" ? new Date() : null,
       // 建记录的同时写一条时间线
       statusEvents: { create: { status, note: "创建投递记录", userId } },

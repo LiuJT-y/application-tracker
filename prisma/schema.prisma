@@ -41,6 +41,22 @@ enum ScheduleType {
   FOLLOWUP
 }
 
+// 简历素材库条目类型：把简历拆成可复用的条目，后续组合成不同版本。
+enum ResumeItemType {
+  PROFILE // 个人简介 / 求职意向
+  EXPERIENCE // 工作 / 实习经历
+  PROJECT // 项目经历
+  EDUCATION // 教育经历
+  SKILL // 技能
+  OTHER
+}
+
+// 简历版本来源：COMPOSED = 由素材库条目组合（Part 2）；UPLOADED = 上传的 PDF（Part 3 留用）。
+enum ResumeVersionSource {
+  COMPOSED
+  UPLOADED
+}
+
 // 用户表：JWT+bcrypt 多用户。apiToken 给 Chrome 插件做 Bearer 鉴权用。
 model User {
   id           String   @id @default(cuid())
@@ -50,11 +66,14 @@ model User {
   apiToken     String   @unique @default(cuid()) // 插件用：Authorization: Bearer <apiToken>
   createdAt    DateTime @default(now())
 
-  applications   Application[]
-  resumeVersions ResumeVersion[]
-  statusEvents   StatusEvent[]
-  reviews        InterviewReview[]
-  scheduleItems  ScheduleItem[]
+  applications       Application[]
+  resumeVersions     ResumeVersion[]
+  resumeItems        ResumeItem[]
+  resumeVersionItems ResumeVersionItem[]
+  resumeFiles        ResumeFile[]
+  statusEvents       StatusEvent[]
+  reviews            InterviewReview[]
+  scheduleItems      ScheduleItem[]
 }
 
 model Application {
@@ -107,17 +126,55 @@ model StatusEvent {
 }
 
 model ResumeVersion {
-  id      String  @id @default(cuid())
-  name    String // "通用技术 v3.2"
-  version String?
-  fileUrl String?
+  id        String              @id @default(cuid())
+  name      String // "通用技术 v3.2"
+  version   String?
+  fileUrl   String? // Part 3 上传 PDF 用
+  isDefault Boolean             @default(false) // 看板新建投递时预填的默认版本（每用户至多一个）
+  note      String? // 备注：这版主打什么
+  source    ResumeVersionSource @default(COMPOSED) // 组合 / 上传
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
 
   applications Application[]
-  createdAt    DateTime      @default(now())
+  items        ResumeVersionItem[]
+  file         ResumeFile? // 一对一：该版本上传的 PDF（Part 3a），有就当 source=UPLOADED
+  createdAt    DateTime            @default(now())
 
+  @@index([userId])
+}
+
+// 简历 PDF 字节：单独一张表存大字节，避免污染 ResumeVersion 的常规查询。
+// data 用 Prisma Bytes（SQLite 与 Postgres 都支持），只有下载接口才 SELECT data。
+model ResumeFile {
+  id        String        @id @default(cuid())
+  version   ResumeVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  versionId String        @unique // 一个版本最多一个 PDF
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  data      Bytes // PDF 原始字节
+  filename  String
+  mimeType  String
+  size      Int
+  createdAt DateTime      @default(now())
+
+  @@index([userId])
+}
+
+// 简历版本 ↔ 素材条目的有序关联表（Part 2 版本组合）。
+model ResumeVersionItem {
+  id        String   @id @default(cuid())
+  version   ResumeVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  versionId String
+  item      ResumeItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId    String
+  order     Int      @default(0) // 该条目在这个版本里的排序
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@index([versionId])
   @@index([userId])
 }
 
@@ -154,4 +211,29 @@ model ScheduleItem {
 
   @@index([applicationId])
   @@index([userId])
+}
+
+// 简历素材库条目：简历管理的地基。把简历拆成可复用的条目（项目/经历/教育/技能），
+// 后续（Part 2）再用这些条目组合成不同的简历版本。日期用字符串存（"2024.09" / "至今"）。
+model ResumeItem {
+  id          String         @id @default(cuid())
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  type        ResumeItemType @default(EXPERIENCE)
+  title       String // 标题：项目名 / 公司名 / 学校
+  org         String? // 机构 / 公司 / 学校
+  location    String?
+  startDate   String? // "2024.09"
+  endDate     String? // "2025.06" / "至今"
+  description String?        @db.Text // 正文 / 要点
+  tags        String[]       @default([])
+  link        String?
+  order       Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  versionItems ResumeVersionItem[]
+
+  @@index([userId])
+  @@index([userId, type])
 }

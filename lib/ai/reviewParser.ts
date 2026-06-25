@@ -1,6 +1,10 @@
 // 面试复盘结构化解析（仿 K12 PreferenceParser 那套写法）：
 // 用 REVIEW_DIMENSIONS 动态拼 prompt → 调模型链 → 健壮解析 / 兜底，
 // 返回 { scores（8 维度 0-100 整数）, strengths, weaknesses, improvement }。
+//
+// Part 2 起支持「简历上下文注入」：纯增量——只有当传入 resumeText 时才启用富提示词与
+// 【岗位背景】【候选人简历】【面试记录】三段式 user message；没有简历时，行为与之前
+// 完全一致（system prompt 原样、user message 就是 transcript 本身）。
 
 import { chatJSON, type LlmOverride } from "./client";
 import {
@@ -16,7 +20,19 @@ export type ParsedReview = {
   improvement: string;
 };
 
-function systemPrompt(): string {
+// 复盘上下文：transcript 必填，其余可选；resumeText 决定是否启用富提示词。
+export type ReviewContext = {
+  transcript: string;
+  company?: string | null;
+  position?: string | null;
+  jdText?: string | null;
+  resumeText?: string | null;
+};
+
+const RESUME_MAX_CHARS = 4000;
+
+// 基础 system prompt —— 与历史版本逐字一致，保证「无简历」时输出不变。
+function baseSystemPrompt(): string {
   const dims = REVIEW_DIMENSIONS.map((d) => `  "${d.key}": <0-100 整数>, // ${d.label}`).join("\n");
   return `你是一名资深的校招面试官与职业教练。请根据用户提供的面试复盘记录，客观评估这次面试表现。
 
@@ -31,6 +47,42 @@ ${dims}
 }
 
 评分要求：每个维度 0-100 的整数；信息不足以判断的维度给 60 左右的中性分，不要编造细节。所有文本用中文。`;
+}
+
+// 有简历时追加的额外要求（让模型结合简历做一致性 / 深度 / 差距分析）。
+function resumeAddendum(hasJd: boolean): string {
+  const jdLine = hasJd
+    ? "\n- 结合【岗位背景】的 JD，点出候选人简历与该岗位要求之间的差距，并体现在 jobMatch 维度与改进建议里。"
+    : "";
+  return `
+
+你还会看到候选人的【候选人简历】。除上述要求外，请额外做到：
+- 判断候选人面试回答与简历所列经历是否一致、有无明显夸大或对不上的地方。
+- 评估候选人是否把简历上的真实项目讲透了（背景、动作、量化结果），没讲透要在 weaknesses 指出。
+- 针对候选人的实际背景（而非泛泛而谈）给出可执行的改进建议。${jdLine}`;
+}
+
+function systemPrompt(ctx: ReviewContext): string {
+  const hasResume = !!ctx.resumeText?.trim();
+  if (!hasResume) return baseSystemPrompt();
+  return baseSystemPrompt() + resumeAddendum(!!ctx.jdText?.trim());
+}
+
+// 拼 user message。无简历 → 原样返回 transcript（行为不变）；有简历 → 三段式上下文。
+function buildUserMessage(ctx: ReviewContext): string {
+  if (!ctx.resumeText?.trim()) return ctx.transcript;
+
+  const parts: string[] = [];
+  const bg: string[] = [];
+  if (ctx.company) bg.push(`公司：${ctx.company}`);
+  if (ctx.position) bg.push(`岗位：${ctx.position}`);
+  if (ctx.jdText?.trim()) bg.push(`岗位 JD：\n${ctx.jdText.trim()}`);
+  if (bg.length) parts.push(`【岗位背景】\n${bg.join("\n")}`);
+
+  const resume = ctx.resumeText.trim().slice(0, RESUME_MAX_CHARS);
+  parts.push(`【候选人简历】\n${resume}`);
+  parts.push(`【面试记录】\n${ctx.transcript}`);
+  return parts.join("\n\n");
 }
 
 // 剥掉可能的 ```json 围栏后再 parse。
@@ -55,14 +107,17 @@ function asText(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
+// 接受字符串（旧调用）或 ReviewContext（带简历 / 岗位背景）。
 export async function parseReview(
-  transcript: string,
+  input: string | ReviewContext,
   override?: LlmOverride
 ): Promise<ParsedReview> {
+  const ctx: ReviewContext = typeof input === "string" ? { transcript: input } : input;
+
   const { content } = await chatJSON(
     [
-      { role: "system", content: systemPrompt() },
-      { role: "user", content: transcript },
+      { role: "system", content: systemPrompt(ctx) },
+      { role: "user", content: buildUserMessage(ctx) },
     ],
     override
   );

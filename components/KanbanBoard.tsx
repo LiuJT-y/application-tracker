@@ -151,9 +151,11 @@ function DroppableColumn({
 function DraggableCard({
   app,
   onDelete,
+  onEdit,
 }: {
   app: Application;
   onDelete: () => void;
+  onEdit: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: app.id,
@@ -165,7 +167,7 @@ function DraggableCard({
       {...attributes}
       className={isDragging ? "opacity-40" : ""}
     >
-      <ApplicationCard app={app} onDelete={onDelete} />
+      <ApplicationCard app={app} onDelete={onDelete} onEdit={onEdit} />
     </div>
   );
 }
@@ -175,6 +177,7 @@ export default function KanbanBoard() {
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingApp, setEditingApp] = useState<Application | null>(null);
   // 落入新列的边框确认闪烁
   const [flashCol, setFlashCol] = useState<Status | null>(null);
   // 「已结束」列默认折叠成窄条
@@ -253,6 +256,13 @@ export default function KanbanBoard() {
         </div>
         <div className="flex items-center gap-2">
           <Link
+            href="/resumes"
+            className="rounded-lg border px-3 py-1.5 text-sm transition-colors"
+            style={{ borderColor: "var(--color-line)", color: "var(--color-txt-dim)" }}
+          >
+            简历管理
+          </Link>
+          <Link
             href="/insights"
             className="rounded-lg border px-3 py-1.5 text-sm transition-colors"
             style={{ borderColor: "var(--color-line)", color: "var(--color-txt-dim)" }}
@@ -324,6 +334,7 @@ export default function KanbanBoard() {
                       key={a.id}
                       app={a}
                       onDelete={() => removeApp(a.id)}
+                      onEdit={() => setEditingApp(a)}
                     />
                   ))}
                 </DroppableColumn>
@@ -339,6 +350,14 @@ export default function KanbanBoard() {
       {showAdd && (
         <AddApplicationDialog
           onClose={() => setShowAdd(false)}
+          onCreated={load}
+        />
+      )}
+
+      {editingApp && (
+        <AddApplicationDialog
+          app={editingApp}
+          onClose={() => setEditingApp(null)}
           onCreated={load}
         />
       )}

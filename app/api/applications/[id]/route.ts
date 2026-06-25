@@ -26,6 +26,22 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const { id: _id, userId: _userId, note, ...patch } = body;
   const statusChanged = patch.status && patch.status !== existing.status;
 
+  // 简历版本只能绑到自己的版本：传了非法/别人的 id 一律拒绝（防越权关联）。
+  if ("resumeVersionId" in patch) {
+    if (patch.resumeVersionId) {
+      const v = await prisma.resumeVersion.findFirst({
+        where: { id: String(patch.resumeVersionId), userId },
+        select: { id: true },
+      });
+      if (!v) {
+        return NextResponse.json({ error: "简历版本不存在" }, { status: 404 });
+      }
+      patch.resumeVersionId = v.id;
+    } else {
+      patch.resumeVersionId = null; // 显式解绑
+    }
+  }
+
   const app = await prisma.application.update({
     where: { id },
     data: {

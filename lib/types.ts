@@ -59,8 +59,73 @@ export type Application = {
   appliedAt: string | null;
   order: number;
   resumeVersionId: string | null;
+  resumeVersionName?: string | null; // 看板卡片展示用（GET /api/applications 平铺）
   createdAt: string;
   updatedAt: string;
+};
+
+// ——— 简历素材库（简历管理 Part 1）———
+// 简历条目类型的中文标签 + 赛博 HUD 配色（dot：标签/描边取它，淡背景用 `${dot}1f`）。
+// 与 schema 的 ResumeItemType 枚举、API 的 RESUME_ITEM_TYPES 保持一致。
+export const RESUME_ITEM_ORDER = [
+  "PROFILE",
+  "EXPERIENCE",
+  "PROJECT",
+  "EDUCATION",
+  "SKILL",
+  "OTHER",
+] as const;
+
+export type ResumeItemType = (typeof RESUME_ITEM_ORDER)[number];
+
+export const RESUME_ITEM_META: Record<
+  ResumeItemType,
+  { label: string; dot: string }
+> = {
+  PROFILE: { label: "个人简介", dot: "#00F0FF" },
+  EXPERIENCE: { label: "经历", dot: "#9D5BFF" },
+  PROJECT: { label: "项目", dot: "#36C9F0" },
+  EDUCATION: { label: "教育", dot: "#00FFA3" },
+  SKILL: { label: "技能", dot: "#FF2E97" },
+  OTHER: { label: "其他", dot: "#8B9CB8" },
+};
+
+export type ResumeItem = {
+  id: string;
+  type: ResumeItemType;
+  title: string;
+  org: string | null;
+  location: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  description: string | null;
+  tags: string[];
+  link: string | null;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// ——— 简历版本（简历管理 Part 2）———
+// 版本来源：组合（素材库条目拼）/ 上传（PDF，Part 3）。
+export type ResumeVersionSource = "COMPOSED" | "UPLOADED";
+
+// 版本卡片用的汇总（带统计）。
+export type ResumeVersionSummary = {
+  id: string;
+  name: string;
+  note: string | null;
+  isDefault: boolean;
+  source: ResumeVersionSource;
+  itemCount: number; // 关联的素材条目数
+  applicationCount: number; // 关联的投递数（全部状态）
+  total: number; // 其中「最远≥已投递」的数（面试率分母）
+  interviewed: number; // 其中「最远≥面试」的数
+  rate: number | null; // interviewed/total*100，1 位小数，分母 0 时 null
+  itemIds: string[]; // 按 order 排好的条目 id（编辑弹窗预填用）
+  // 上传的 PDF 元信息（Part 3a）。列表查询只取这些，绝不带字节。
+  pdf: { filename: string; size: number } | null;
+  createdAt: string;
 };
 
 // ——— 面试复盘 ———

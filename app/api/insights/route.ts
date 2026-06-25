@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserId, unauthorized } from "@/lib/auth/session";
+import { reachedIndex } from "@/lib/insights";
 import {
   STAGE_INDEX,
   CHANNEL_META,
@@ -14,21 +15,6 @@ import {
 function pct(num: number, den: number): number | null {
   if (den === 0) return null;
   return Math.round((num / den) * 1000) / 10;
-}
-
-// currentStage 自由文本里带「面 / 轮 / interview」就算这条投递「到过面试」。
-// 用来还原已结束(REJECTED)投递挂之前的进度，而不是去翻可能含拖错记录的历史。
-function reachedInterview(currentStage: string | null): boolean {
-  return !!currentStage && /面|轮|interview/i.test(currentStage);
-}
-
-// 一条投递「到达过的阶段」序号 —— 只看当前面板状态，不翻 StatusEvent 历史，
-// 这样不小心拖错又拖回来不会污染统计。
-// 唯一例外：REJECTED 本身不带进度，用 currentStage(第几次面试)还原它挂之前到过哪。
-function reachedIndex(status: Status, currentStage: string | null): number {
-  if (status !== "REJECTED") return STAGE_INDEX[status];
-  // 已结束：currentStage 标明了面试轮次 → 算到过面试；否则只能确认它投过(APPLIED)。
-  return reachedInterview(currentStage) ? STAGE_INDEX.INTERVIEWING : STAGE_INDEX.APPLIED;
 }
 
 // 按某个 key 分组算面试率。only 已计算好 farthest 的投递（且已过滤为「最远≥APPLIED」）。

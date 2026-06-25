@@ -59,10 +59,12 @@ export default function ApplicationCard({
   app,
   dragging = false,
   onDelete,
+  onEdit,
 }: {
   app: Application;
   dragging?: boolean;
   onDelete?: () => void;
+  onEdit?: () => void;
 }) {
   const meta = STATUS_META[app.status];
   const isRejected = app.status === "REJECTED";
@@ -97,6 +99,23 @@ export default function ApplicationCard({
           borderRight: `1.5px solid ${meta.dot}`,
         }}
       />
+
+      {/* 编辑按钮：hover 显示，放在删除左侧。stopPropagation 防止触发 dnd 拖拽 */}
+      {onEdit && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          title="编辑这条投递"
+          aria-label="编辑"
+          className="absolute right-7 top-1 z-10 hidden h-5 w-5 items-center justify-center rounded-md text-[11px] leading-none transition-colors group-hover:flex hover:brightness-125"
+          style={{ color: "var(--color-neon-cyan)", background: "rgba(10,14,26,0.85)" }}
+        >
+          ✎
+        </button>
+      )}
 
       {/* 删除按钮：hover 显示。stopPropagation 防止触发 dnd 拖拽 */}
       {onDelete && (
@@ -165,6 +184,18 @@ export default function ApplicationCard({
           )}
         </span>
       </div>
+
+      {/* 用的是哪版简历（有就显示，简洁即可） */}
+      {app.resumeVersionName && (
+        <div
+          className="mt-1.5 flex items-center gap-1 truncate text-[10px]"
+          style={{ color: "var(--color-txt-dim)" }}
+          title={`简历版本：${app.resumeVersionName}`}
+        >
+          <span style={{ color: "var(--color-neon-cyan)", opacity: 0.7 }}>▤</span>
+          <span className="truncate">{app.resumeVersionName}</span>
+        </div>
+      )}
     </div>
   );
 }
