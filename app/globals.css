@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+/* ───────────────────────────────────────────────
+   赛博 HUD 主题 —— 颜色 / 字体单一来源
+   组件里别再散落硬编码色，统一取这里的变量
+   （Tailwind v4 @theme 会把这些导出成 :root 自定义属性，
+    既能当 text-neon-cyan 之类工具类，也能在内联 style 里 var() 引用）
+─────────────────────────────────────────────── */
+@theme {
+  /* 字体：标题用 Orbitron，正文用 Inter，数据/数字用 JetBrains Mono，中文用 Noto Sans SC */
+  --font-display: var(--font-orbitron), var(--font-noto-sc), ui-sans-serif, sans-serif;
+  --font-sans: var(--font-inter), var(--font-noto-sc), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jbmono), ui-monospace, "SFMono-Regular", monospace;
+
+  /* 深空背景 */
+  --color-space: #0a0e1a;
+  --color-space-2: #0d1322;
+  --color-panel: rgba(13, 19, 34, 0.5);
+
+  /* 主霓虹 */
+  --color-neon-cyan: #00f0ff;
+  --color-neon-magenta: #ff2e97;
+  --color-neon-purple: #7b2ff7;
+  --color-neon-green: #00ffa3;
+
+  /* 文字 */
+  --color-txt: #e6f1ff;
+  --color-txt-dim: #8b9cb8;
+
+  /* 描边 / 网格线 */
+  --color-line: rgba(139, 156, 184, 0.14);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-space);
+  color: var(--color-txt);
+  font-family: var(--font-sans);
+
+  /* 极淡网格 + 角落霓虹辉光（fixed，滚动不动） */
+  background-image:
+    radial-gradient(circle at 12% -10%, rgba(0, 240, 255, 0.07), transparent 42%),
+    radial-gradient(circle at 95% 110%, rgba(255, 46, 151, 0.06), transparent 42%),
+    linear-gradient(var(--color-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
+  background-size: auto, auto, 40px 40px, 40px 40px;
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* currentColor 文字辉光，方便按状态色发光 */
+@layer utilities {
+  .text-glow {
+    text-shadow: 0 0 8px currentColor;
+  }
+}
+
+/* 指标数字的轻微脉冲呼吸（辉光随 currentColor 走） */
+@keyframes hud-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    text-shadow: 0 0 8px currentColor;
+  }
+  50% {
+    opacity: 0.82;
+    text-shadow: 0 0 18px currentColor;
+  }
+}
+.animate-pulse-glow {
+  animation: hud-pulse 3s ease-in-out infinite;
+}
+
+/* hover 流光：一道斜向高光扫过面板。给元素加 .hud-sweep（需 relative + overflow-hidden） */
+.hud-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(230, 241, 255, 0.1) 48%,
+    transparent 66%
+  );
+  transform: translateX(-120%);
+  transition: transform 0.7s ease;
+}
+.hud-sweep:hover::after {
+  transform: translateX(120%);
+}
+
+/* 尊重「减少动态效果」：关掉脉冲 / 流光 */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-glow {
+    animation: none;
+  }
+  .hud-sweep::after {
+    display: none;
+  }
+}
