@@ -37,7 +37,7 @@
 3. 想用 AI 面试复盘 → 进**设置页**填你自己的 LLM key(OpenAI 等任意 OpenAI 兼容接口):
    - `API Key`、`Base URL`(如 `https://api.openai.com/v1/chat/completions`)、`Model`(如 `gpt-4o-mini`)
    - 点「测试连接」确认通,再保存。key 只存在你这台浏览器,不会上传。
-4. 想用 Chrome 插件采集岗位 → 设置页里**复制插件 token**,填进插件配置即可。
+4. 想用 Chrome 插件采集岗位 → 设置页里**复制插件 token**,填进插件配置即可。插件仓库：https://github.com/LiuJT-y/resume-jd-matcher.git
 
 > ⚠️ 数据库托管在 Vercel + Neon(美国区)。**中国大陆直连这个 URL 可能很慢或打不开**,服务器和数据库都在境外。大陆用户建议走方案二本地部署。
 
