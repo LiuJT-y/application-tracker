@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   REVIEW_DIMENSIONS,
@@ -13,7 +12,6 @@ import {
   type ReviewScores,
 } from "@/lib/types";
 import { llmHeaders } from "@/lib/llmConfig";
-import UserMenu from "./UserMenu";
 
 // HUD 风输入框：深底 + 浅字 + 霓虹聚焦描边
 const inputCls =
@@ -109,24 +107,15 @@ export default function ReviewPanel() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1
-            className="font-display text-xl font-bold uppercase tracking-[0.18em] text-glow"
-            style={{ color: "var(--color-neon-cyan)" }}
+            className="flex items-center gap-2 font-display text-2xl font-bold tracking-[0.12em] text-glow"
+            style={{ color: "var(--color-txt)" }}
           >
+            <span style={{ color: "var(--color-accent)" }}>✦</span>
             AI 面试复盘
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--color-txt-dim)" }}>
             // 填写面试记录，AI 给出 8 维度评分与改进建议
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/board"
-            className="rounded-lg border px-3 py-1.5 text-sm transition-colors"
-            style={{ borderColor: "var(--color-line)", color: "var(--color-txt-dim)" }}
-          >
-            ← 回看板
-          </Link>
-          <UserMenu />
         </div>
       </div>
 

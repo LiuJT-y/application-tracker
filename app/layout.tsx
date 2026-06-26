@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Orbitron, Inter, JetBrains_Mono, Noto_Sans_SC } from "next/font/google";
 import Particles from "@/components/Particles";
+import AppShell from "@/components/AppShell";
 
 // 标题 / 公司名：等宽科技感
 const orbitron = Orbitron({
@@ -46,7 +47,7 @@ export default function RootLayout({
     >
       <body className="font-sans antialiased">
         <Particles />
-        {children}
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

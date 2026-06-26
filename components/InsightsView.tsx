@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   BarChart,
@@ -19,7 +18,6 @@ import {
   type FunnelStage,
   type RateRow,
 } from "@/lib/types";
-import UserMenu from "./UserMenu";
 
 // 漏斗各层配色复用看板状态色（单一来源）：APPLIED→OA→INTERVIEWING→OFFER。
 const FUNNEL_COLORS = [
@@ -51,24 +49,15 @@ export default function InsightsView() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1
-            className="font-display text-xl font-bold uppercase tracking-[0.18em] text-glow"
-            style={{ color: "var(--color-neon-cyan)" }}
+            className="flex items-center gap-2 font-display text-2xl font-bold tracking-[0.12em] text-glow"
+            style={{ color: "var(--color-txt)" }}
           >
+            <span style={{ color: "var(--color-accent)" }}>✦</span>
             数据洞察
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--color-txt-dim)" }}>
             // 按「每条投递最远到达过的阶段」统计，挂掉但到过面试的投递也算进面试率
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/board"
-            className="rounded-lg border px-3 py-1.5 text-sm transition-colors"
-            style={{ borderColor: "var(--color-line)", color: "var(--color-txt-dim)" }}
-          >
-            ← 回看板
-          </Link>
-          <UserMenu />
         </div>
       </div>
 

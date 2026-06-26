@@ -20,15 +20,20 @@ type AssembledItem = {
   title: string;
   org: string | null;
   location: string | null;
+  role: string | null;
+  degree: string | null;
   startDate: string | null;
   endDate: string | null;
   description: string | null;
+  bullets: string[];
   tags: string[];
 };
 
-// 单条目拼成一段文本。
+// 单条目拼成一段文本。要点优先用 bullets（结构化），没有则兜底旧 description。
 function renderItem(it: AssembledItem): string {
   const head: string[] = [it.title];
+  if (it.role) head.push(it.role);
+  if (it.degree) head.push(it.degree);
   if (it.org) head.push(it.org);
   if (it.location) head.push(it.location);
   const range =
@@ -38,7 +43,11 @@ function renderItem(it: AssembledItem): string {
   const titleLine = range ? `${head.join(" · ")}（${range}）` : head.join(" · ");
 
   const lines = [titleLine];
-  if (it.description?.trim()) lines.push(it.description.trim());
+  if (it.bullets.length > 0) {
+    for (const b of it.bullets) lines.push(`- ${b}`);
+  } else if (it.description?.trim()) {
+    lines.push(it.description.trim());
+  }
   if (it.tags.length) lines.push(`标签：${it.tags.join("、")}`);
   return lines.join("\n");
 }
@@ -60,9 +69,12 @@ export async function assembleResumeText(
     title: l.item.title,
     org: l.item.org,
     location: l.item.location,
+    role: l.item.role,
+    degree: l.item.degree,
     startDate: l.item.startDate,
     endDate: l.item.endDate,
     description: l.item.description,
+    bullets: l.item.bullets,
     tags: l.item.tags,
   }));
 

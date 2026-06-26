@@ -1,18 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import UserMenu from "@/components/UserMenu";
 import ResumeProfileCard from "@/components/ResumeProfileCard";
 import ResumeItemsPanel from "@/components/ResumeItemsPanel";
 import ResumeVersionsPanel from "@/components/ResumeVersionsPanel";
 import ResumeGalleryPanel from "@/components/ResumeGalleryPanel";
-
-const secondaryBtn = "rounded-lg border px-3 py-1.5 text-sm transition-colors";
-const secondaryStyle = {
-  borderColor: "var(--color-line)",
-  color: "var(--color-txt-dim)",
-} as const;
 
 type Tab = "items" | "versions" | "gallery";
 
@@ -27,25 +19,18 @@ export default function ResumesPage() {
 
   return (
     <main className="mx-auto max-w-[1400px] px-6 py-8">
-      {/* 页头：标题 + 回看板 + UserMenu，跟 settings 页一致 */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1
-            className="font-display text-xl font-bold uppercase tracking-[0.18em] text-glow"
-            style={{ color: "var(--color-neon-cyan)" }}
-          >
-            简历管理
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--color-txt-dim)" }}>
-            // 素材库总表 + 简历版本组合
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href="/board" className={secondaryBtn} style={secondaryStyle}>
-            ← 回看板
-          </Link>
-          <UserMenu />
-        </div>
+      {/* 页头：标题（导航 / 用户菜单已移到全站侧边栏） */}
+      <div className="mb-6">
+        <h1
+          className="flex items-center gap-2 font-display text-2xl font-bold tracking-[0.12em] text-glow"
+          style={{ color: "var(--color-txt)" }}
+        >
+          <span style={{ color: "var(--color-accent)" }}>✦</span>
+          简历管理
+        </h1>
+        <p className="mt-1 text-sm" style={{ color: "var(--color-txt-dim)" }}>
+          // 素材库总表 + 简历版本组合
+        </p>
       </div>
 
       {/* 个人信息：全局唯一一份，独立于总表条目 */}

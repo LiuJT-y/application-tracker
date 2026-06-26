@@ -19,11 +19,9 @@ import {
   type Application,
   type Status,
 } from "@/lib/types";
-import Link from "next/link";
 import ApplicationCard from "./ApplicationCard";
 import AddApplicationDialog from "./AddApplicationDialog";
 import MetricsBar from "./MetricsBar";
-import UserMenu from "./UserMenu";
 
 function DroppableColumn({
   status,
@@ -242,52 +240,62 @@ export default function KanbanBoard() {
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="min-w-0">
           <h1
-            className="font-display text-xl font-bold uppercase tracking-[0.18em] text-glow"
-            style={{ color: "var(--color-neon-cyan)" }}
+            className="flex items-center gap-2 font-display text-2xl font-bold tracking-[0.12em] text-glow"
+            style={{ color: "var(--color-txt)" }}
           >
+            <span style={{ color: "var(--color-accent)" }}>✦</span>
             投递看板
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--color-txt-dim)" }}>
             // 拖动卡片即可更新状态
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/resumes"
-            className="rounded-lg border px-3 py-1.5 text-sm transition-colors"
+        <div className="flex shrink-0 items-center gap-2">
+          {/* 搜索框（纯视觉占位，后续接过滤逻辑） */}
+          <div className="relative hidden sm:block">
+            <span
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+              style={{ color: "var(--color-txt-dim)" }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M21 21l-4.3-4.3" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              disabled
+              placeholder="搜索职位 / 公司"
+              className="w-52 rounded-lg border bg-[#0d1322] py-2 pl-9 pr-3 text-sm text-[#E6F1FF] placeholder:text-[#8B9CB8] transition-colors focus:border-[var(--color-accent)]"
+              style={{ borderColor: "rgba(139,156,184,0.2)" }}
+            />
+          </div>
+          {/* 筛选（纯视觉占位） */}
+          <button
+            type="button"
+            title="筛选"
+            aria-label="筛选"
+            className="grid h-9 w-9 place-items-center rounded-lg border transition-colors"
             style={{ borderColor: "var(--color-line)", color: "var(--color-txt-dim)" }}
           >
-            简历管理
-          </Link>
-          <Link
-            href="/insights"
-            className="rounded-lg border px-3 py-1.5 text-sm transition-colors"
-            style={{ borderColor: "var(--color-line)", color: "var(--color-txt-dim)" }}
-          >
-            数据洞察
-          </Link>
-          <Link
-            href="/review"
-            className="rounded-lg border px-3 py-1.5 text-sm transition-colors"
-            style={{ borderColor: "var(--color-line)", color: "var(--color-txt-dim)" }}
-          >
-            AI 复盘
-          </Link>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+              <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+            </svg>
+          </button>
           <button
             onClick={() => setShowAdd(true)}
-            className="rounded-lg px-3 py-1.5 text-sm font-medium transition-all"
+            className="rounded-lg px-3.5 py-2 text-sm font-medium transition-all"
             style={{
-              color: "#04121a",
-              background: "var(--color-neon-cyan)",
-              boxShadow: "0 0 16px rgba(0,240,255,0.4)",
+              color: "#fff",
+              background: "var(--color-accent)",
+              boxShadow: "0 0 16px rgba(123,92,255,0.45)",
             }}
           >
             + 添加岗位
           </button>
-          <UserMenu />
         </div>
       </div>
 

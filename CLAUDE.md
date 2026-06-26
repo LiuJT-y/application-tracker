@@ -43,7 +43,7 @@ app/review/page.tsx           AI 面试复盘页
 app/resumes/page.tsx          简历管理：顶部个人信息卡 + tab 容器（总表 | 简历版本 | PDF 画廊）
 components/ResumeProfileCard.tsx  个人信息卡（全局唯一）：展示 + 编辑，PUT /api/resume-profile
 components/ResumeItemsPanel.tsx  总表（素材库）面板：表格 + 类型筛选 + 增删改
-components/ResumeItemDialog.tsx  简历条目新增/编辑弹窗（赛博 HUD 风）
+components/ResumeItemDialog.tsx  简历条目新增/编辑弹窗（按 type 动态显隐字段 + bullets 多条编辑，赛博 HUD 风）
 components/ResumeVersionsPanel.tsx  简历版本面板：版本卡片（统计 + 默认徽章 + PDF 区块）+ 增删改 + 设默认
 components/ResumeVersionDialog.tsx  新建/编辑版本弹窗：条目多选 + dnd-kit 拖拽排序 + 设默认
 components/ResumePdfControl.tsx  版本卡片上的 PDF 上传/预览/替换/删除
@@ -55,12 +55,15 @@ components/ApplicationCard.tsx  含编辑按钮 + 展示所用简历版本名
 components/AddApplicationDialog.tsx  新建/编辑岗位（含简历版本下拉，默认版本预填）
 components/ReviewPanel.tsx    复盘结构化表单 + 评分展示 + 历史列表
 
+—— 全站布局壳（赛博 HUD + 紫色高亮 accent）——
+components/AppShell.tsx        挂在 app/layout.tsx：左 Sidebar + 右 main(ml-[220px])；/login·/register 不套壳（BARE_PAGES，与 proxy 的 AUTH_PAGES 一致）
+components/Sidebar.tsx         左侧固定竖向侧边栏：Logo「OfferGate」+ 带图标导航（usePathname 高亮，紫胶囊+左光条）+ 底部用户卡（/api/auth/me）/设置/退出（并入原 UserMenu 逻辑，UserMenu 已删）
+
 —— 多用户 + 用户自带 LLM key ——
 lib/auth/{hash,jwt,session}.ts  bcrypt / jose 签发校验 / cookie→userId（getCurrentUserId·getRequestUserId）
 proxy.ts                      页面守卫（Next 16 proxy 约定）：未登录跳 /login，已登录访问登录页跳 /board
 app/api/auth/                 register / login / logout / me
-app/login·register/page.tsx   登录 / 注册（共用 components/AuthForm.tsx）
-components/UserMenu.tsx        顶栏：当前用户 + 设置 + 退出
+app/login·register/page.tsx   登录 / 注册（共用 components/AuthForm.tsx，HUD 紫色 accent）
 lib/llmConfig.ts              LLM key localStorage 读写 + 请求头（x-llm-*）
 app/settings/page.tsx         填 LLM key（存 localStorage）+ 展示插件 token
 app/api/ai/test/              测试 LLM 连接
@@ -83,6 +86,8 @@ app/api/ai/test/              测试 LLM 连接
 - **个人信息全局唯一、单独管理**:`ResumeProfile` 每用户至多一条(`userId @unique`,`PUT /api/resume-profile` 走 upsert),**不进 `ResumeItem` 总表**,在 `/resumes` 顶部卡片编辑。生成简历时它是抬头。
 - **简历条目要点用 `bullets String[]`(一条一个)**,为生成简历的结构化铺路;旧的单段 `description` 仅过渡保留(已用 `prisma/migrate-bullets.ts` 迁移),新写入走 `bullets`,**别再往 `description` 塞要点**。`role`(项目/经历角色)、`degree`(教育学位/专业)是类型特有可选字段。
 - 中文 UI,代码注释中文 OK。
+- **全站导航统一在 `components/Sidebar.tsx`(左侧固定栏)**:新增页面别再各自写顶栏 nav / 用户菜单,导航项加在 `Sidebar` 的 `NAV` 数组即可;页面只留标题区(`✦` + 大标题 + `// …` 副标题)。布局由 `AppShell` 包裹(挂在 `app/layout.tsx`),`/login`·`/register` 走 `BARE_PAGES` 不套壳。
+- **紫色强调 `--color-accent`(#7b5cff)只做点睛**(侧边栏高亮 / 主按钮 / 标题 `✦`),cyan 仍是基底、列状态色仍走 `STATUS_META`(唯一真源不变)。
 - **前端风格走赛博 HUD 风(霓虹高亮 + 深空暗背景 + 辉光)**。颜色/字体的唯一真源是 `app/globals.css` 的 `@theme` 块(CSS 变量),组件里别散落硬编码色,统一 `var(--color-…)`:
   - 背景/面板:`--color-space`(页面底)、`--color-panel`(卡片半透明底);描边/网格线 `--color-line`(很淡)。
   - 霓虹主色:`--color-neon-cyan`(#00F0FF,主强调/标题/主按钮)、`--color-neon-green`(#00FFA3,成功/高分)、`--color-neon-magenta`(#FF2E97,错误/低分)、`--color-neon-purple`。文字 `--color-txt` / `--color-txt-dim`。
@@ -109,7 +114,12 @@ app/api/ai/test/              测试 LLM 连接
 - [x] Part 3a PDF 上传 + 存储 —— 新增 `ResumeFile` 表(`data Bytes` + filename/mimeType/size，`versionId` 唯一一对一，userId 隔离)单独存大字节,**不污染版本常规查询**;`/api/resume-versions/[id]/pdf` 三件套(POST 上传/替换 校验 `application/pdf`+≤4MB、DELETE、GET 流式 inline 预览——GET 是唯一读 `data` 字节的地方);列表接口只取 `file{filename,size}` 元信息、绝不带字节;有 PDF 时把 `source` 标 `UPLOADED`,删后回 `COMPOSED`;版本卡片上传/预览/替换/删除 UI(`ResumePdfControl`)。字节存数据库用 `Bytes`(SQLite/Postgres 通用),不用对象存储、无新环境变量。
 - [x] Part 3b PDF 翻页画廊 —— `/resumes` 加「PDF 画廊」tab(`ResumeGalleryPanel`):画廊只收【有 PDF】的版本(列表接口过滤 `pdf!=null`,userId 隔离),外层横滑各版本、每版只懒渲染【首页】当封面(`PdfImage` + IntersectionObserver),点进 `ResumeGalleryViewer` 逐页竖滚(逐页懒渲染)+「第 x/N 页」+ 下载原 PDF。渲染走 **PDF.js(`pdfjs-dist` v6)**,字节从 3a 的 `GET .../pdf` 取。**worker 配置**:`scripts/copy-pdf-worker.mjs` 在 `dev`/`build` 前把 `pdfjs-dist/build/pdf.worker.min.mjs` 复制到 `public/`,`lib/pdf/render.ts` 里 `GlobalWorkerOptions.workerSrc='/pdf.worker.min.mjs'`(**同源、不走 CDN**,大陆本机可用;pdfjs v6 用 `{type:'module'}` 创建 worker,同源直连)。`pdfjs-dist` 只在 `lib/pdf/render.ts` 里 **dynamic import**,仅客户端按需加载,不进首屏包;document/页图均缓存,来回滑不重复请求/渲染。
 - [x] 结构升级(地基)—— 为「分类型表单」和「生成简历」铺路:`ResumeItem` 加 `role`(项目/经历角色)、`degree`(教育学位/专业)、`bullets String[]`(结构化要点,一条一个);旧的 `description` 单段文本**保留过渡**(暂不删),用 `prisma/migrate-bullets.ts` 幂等迁移成 `bullets`(按换行 + 行首 ◦/•/-/–/—/* 拆条)。新增 `ResumeProfile` 表(每用户全局唯一 `userId @unique`)+ `/api/resume-profile`(GET/PUT upsert),`/resumes` 顶部加个人信息卡(`ResumeProfileCard`,独立于总表条目)。本次**不做分类型表单 UI**(条目弹窗仍用 description,role/degree/bullets 仅 API/字段就绪);`PROFILE` 类型选项暂留,做动态表单时再从下拉移除。
-- [ ] 动态表单(下一步)—— 条目弹窗按 type 显示不同字段(项目用 role、教育用 degree…),要点改成 bullets 多条编辑;从类型下拉移除 `PROFILE`(已被个人信息卡取代)。
+- [x] 分类型动态表单 —— `ResumeItemDialog` 按 `type` 动态显隐字段,要点改成 **bullets 多条可增删 + ↑↓ 调顺序**(保存写 `bullets`、回填优先 `bullets` 否则拆旧 `description`,保存统一把 `description` 置 null)。切换类型内容保留(只显隐)。类型下拉**已移除 `PROFILE`**(由个人信息卡接管;仅编辑遗留 PROFILE 条目时临时回显)。`assemble.ts` 改为优先用 `bullets`(+role/degree)拼简历、`description` 兜底;总表预览也优先 `bullets`。**全类型已移除「标签 tags / 链接 link」两栏**(保存时 `tags:[]`、`link:null` 清空,总表也不再有标签列/标题链接)。各类型字段对照:
+  - 工作 EXPERIENCE(原「经历」,`META.label` 已改「工作」):标题(职位)、**用工类型(实习/全职/兼职,下拉,存 `role`)**、公司、地点、起止时间、**主要工作和成绩**(bullets)
+  - 项目 PROJECT:标题(项目名)、角色 `role`、**组织**(org)、起止时间、**主要工作和成绩**(bullets)（无地点)
+  - 教育 EDUCATION:标题(学校)、学历 `degree`、专业 `role`、地点(可选)、起止时间、要点(可选,如 GPA/荣誉)
+  - 技能 SKILL:标题(分类名)、具体技能(bullets,**必填≥1**)
+  - 其他 OTHER:标题、机构/地点/起止时间、要点
 - [ ] Part 4 选条目生成 PDF —— 勾选条目排版导出 PDF（抬头用 `ResumeProfile`，正文用各条目 `bullets`）。
 
 ## 多用户 + 用户自带 LLM key(已完成)

@@ -69,7 +69,8 @@ export default function ResumeItemsPanel() {
           color="#00F0FF"
           onClick={() => setFilter("ALL")}
         />
-        {RESUME_ITEM_ORDER.map((t) => (
+        {/* 个人简介(PROFILE)已由顶部「个人信息」卡片接管，筛选里不再展示 */}
+        {RESUME_ITEM_ORDER.filter((t) => t !== "PROFILE").map((t) => (
           <FilterPill
             key={t}
             active={filter === t}
@@ -105,8 +106,8 @@ export default function ResumeItemsPanel() {
               <th className="px-4 py-3 font-medium">类型</th>
               <th className="px-4 py-3 font-medium">标题</th>
               <th className="px-4 py-3 font-medium">机构</th>
+              <th className="px-4 py-3 font-medium">地点</th>
               <th className="px-4 py-3 font-medium">时间</th>
-              <th className="px-4 py-3 font-medium">标签</th>
               <th className="px-4 py-3 text-right font-medium">操作</th>
             </tr>
           </thead>
@@ -151,64 +152,35 @@ export default function ResumeItemsPanel() {
                       </span>
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <div style={{ color: "var(--color-txt)" }}>
-                        {it.link ? (
-                          <a
-                            href={it.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="transition-colors hover:underline"
-                            style={{ color: "var(--color-neon-cyan)" }}
+                      <div style={{ color: "var(--color-txt)" }}>{it.title}</div>
+                      {(() => {
+                        // 优先展示结构化要点 bullets；没有则兜底用旧 description。
+                        const preview =
+                          it.bullets && it.bullets.length > 0
+                            ? it.bullets.join(" · ")
+                            : it.description ?? "";
+                        return preview ? (
+                          <div
+                            className="mt-1 line-clamp-2 max-w-md text-xs"
+                            style={dim}
+                            title={preview}
                           >
-                            {it.title}
-                          </a>
-                        ) : (
-                          it.title
-                        )}
-                      </div>
-                      {it.description && (
-                        <div
-                          className="mt-1 line-clamp-2 max-w-md text-xs"
-                          style={dim}
-                          title={it.description}
-                        >
-                          {it.description}
-                        </div>
-                      )}
+                            {preview}
+                          </div>
+                        ) : null;
+                      })()}
                     </td>
                     <td className="px-4 py-3 align-top" style={{ color: "var(--color-txt)" }}>
                       {it.org || <span style={dim}>—</span>}
-                      {it.location && (
-                        <span className="ml-1 text-xs" style={dim}>
-                          · {it.location}
-                        </span>
-                      )}
+                    </td>
+                    <td className="px-4 py-3 align-top" style={{ color: "var(--color-txt)" }}>
+                      {it.location || <span style={dim}>—</span>}
                     </td>
                     <td
                       className="whitespace-nowrap px-4 py-3 align-top font-mono text-xs"
                       style={dim}
                     >
                       {fmtRange(it) || "—"}
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      <div className="flex flex-wrap gap-1">
-                        {it.tags.length === 0 ? (
-                          <span style={dim}>—</span>
-                        ) : (
-                          it.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded px-1.5 py-0.5 text-xs"
-                              style={{
-                                color: "var(--color-txt-dim)",
-                                border: "1px solid var(--color-line)",
-                              }}
-                            >
-                              {tag}
-                            </span>
-                          ))
-                        )}
-                      </div>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right align-top">
                       <button

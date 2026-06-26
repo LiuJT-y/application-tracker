@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import UserMenu from "@/components/UserMenu";
 import {
   loadLlmConfig,
   saveLlmConfig,
@@ -111,24 +109,17 @@ export default function SettingsPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1
-            className="font-display text-xl font-bold uppercase tracking-[0.18em] text-glow"
-            style={{ color: "var(--color-neon-cyan)" }}
-          >
-            设置
-          </h1>
-          <p className="mt-1 text-sm" style={dim}>
-            // LLM key 只存你浏览器本地，不上传、不入库
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href="/board" className={secondaryBtn} style={secondaryStyle}>
-            ← 回看板
-          </Link>
-          <UserMenu />
-        </div>
+      <div className="mb-6">
+        <h1
+          className="flex items-center gap-2 font-display text-2xl font-bold tracking-[0.12em] text-glow"
+          style={{ color: "var(--color-txt)" }}
+        >
+          <span style={{ color: "var(--color-accent)" }}>✦</span>
+          设置
+        </h1>
+        <p className="mt-1 text-sm" style={dim}>
+          // LLM key 只存你浏览器本地，不上传、不入库
+        </p>
       </div>
 
       {/* LLM 配置 */}

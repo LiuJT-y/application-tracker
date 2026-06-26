@@ -33,6 +33,12 @@
 
 :root {
   color-scheme: dark;
+
+  /* 强调紫（侧边栏高亮 / 主按钮 / 标题 ✦）—— cyan 仍是基底，紫只做点睛。
+     放普通 :root 而非 @theme：这些只在内联 style 的 var() 里用、没有对应工具类，
+     若写进 @theme 会被 Tailwind v4 摇树掉（编译后 :root 里查无此变量）。 */
+  --color-accent: #7b5cff;
+  --color-accent-2: #a855f7;
 }
 
 body {

@@ -83,7 +83,7 @@ export const RESUME_ITEM_META: Record<
   { label: string; dot: string }
 > = {
   PROFILE: { label: "个人简介", dot: "#00F0FF" },
-  EXPERIENCE: { label: "经历", dot: "#9D5BFF" },
+  EXPERIENCE: { label: "工作", dot: "#9D5BFF" },
   PROJECT: { label: "项目", dot: "#36C9F0" },
   EDUCATION: { label: "教育", dot: "#00FFA3" },
   SKILL: { label: "技能", dot: "#FF2E97" },
