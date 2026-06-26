@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import UserMenu from "@/components/UserMenu";
+import ResumeProfileCard from "@/components/ResumeProfileCard";
 import ResumeItemsPanel from "@/components/ResumeItemsPanel";
 import ResumeVersionsPanel from "@/components/ResumeVersionsPanel";
 import ResumeGalleryPanel from "@/components/ResumeGalleryPanel";
@@ -46,6 +47,9 @@ export default function ResumesPage() {
           <UserMenu />
         </div>
       </div>
+
+      {/* 个人信息：全局唯一一份，独立于总表条目 */}
+      <ResumeProfileCard />
 
       {/* 子导航 tab */}
       <div

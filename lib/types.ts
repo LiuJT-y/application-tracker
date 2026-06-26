@@ -96,14 +96,27 @@ export type ResumeItem = {
   title: string;
   org: string | null;
   location: string | null;
+  role: string | null; // 项目/经历用：角色
+  degree: string | null; // 教育用：学位/专业
   startDate: string | null;
   endDate: string | null;
-  description: string | null;
+  description: string | null; // 旧正文，已迁移进 bullets，过渡保留
+  bullets: string[]; // 结构化要点，一条一个
   tags: string[];
   link: string | null;
   order: number;
   createdAt: string;
   updatedAt: string;
+};
+
+// 个人信息：每个用户全局唯一一条，独立于 ResumeItem 总表。
+export type ResumeProfile = {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  location: string | null;
+  github: string | null; // GitHub 主页
+  linkedin: string | null; // 领英主页
 };
 
 // ——— 简历版本（简历管理 Part 2）———

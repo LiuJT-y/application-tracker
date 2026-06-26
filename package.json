@@ -10,6 +10,7 @@
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:migrate-bullets": "tsx prisma/migrate-bullets.ts",
     "db:studio": "prisma studio"
   },
   "prisma": {

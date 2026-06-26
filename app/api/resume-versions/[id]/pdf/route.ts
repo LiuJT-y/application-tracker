@@ -12,7 +12,9 @@ async function ownVersion(id: string, userId: string): Promise<boolean> {
   return !!v;
 }
 
-// POST /api/resume-versions/:id/pdf —— 上传 / 替换该版本的 PDF（multipart/form-data，字段名 file）。
+// POST /api/resume-versions/:id/pdf —— 上传 / 替换该版本的 PDF。
+// 用「原始字节」上传（Content-Type: application/pdf + x-filename 头），不用 multipart/form-data：
+// Next.js 会把 multipart POST 当成 Server Action 拦截，导致请求打不到这个 route handler（连接被重置）。
 export async function POST(req: NextRequest, { params }: Ctx) {
   const userId = await getCurrentUserId();
   if (!userId) return unauthorized();
@@ -22,32 +24,49 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: "版本不存在" }, { status: 404 });
   }
 
-  const form = await req.formData().catch(() => null);
-  const file = form?.get("file");
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "缺少 PDF 文件" }, { status: 400 });
-  }
-  if (file.type !== "application/pdf") {
+  const contentType = req.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/pdf")) {
     return NextResponse.json({ error: "只接受 PDF 文件" }, { status: 400 });
   }
-  if (file.size <= 0 || file.size > MAX_BYTES) {
+
+  const bytes = Buffer.from(await req.arrayBuffer());
+  if (bytes.length <= 0 || bytes.length > MAX_BYTES) {
     return NextResponse.json({ error: "文件需 >0 且 ≤4MB" }, { status: 400 });
   }
+  // 校验 PDF 魔数（%PDF），避免存进非 PDF 的垃圾字节。
+  if (bytes.subarray(0, 5).toString("latin1") !== "%PDF-") {
+    return NextResponse.json({ error: "不是有效的 PDF 文件" }, { status: 400 });
+  }
 
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const filename = file.name || "resume.pdf";
+  // 文件名从 x-filename 头取（已 encodeURIComponent），兜底 resume.pdf。
+  let filename = "resume.pdf";
+  const rawName = req.headers.get("x-filename");
+  if (rawName) {
+    try {
+      filename = (decodeURIComponent(rawName).trim() || filename).slice(0, 255);
+    } catch {
+      /* 解码失败用兜底名 */
+    }
+  }
 
   // 已存在则覆盖（versionId 唯一）；同时把版本来源标记为 UPLOADED。
   await prisma.$transaction([
     prisma.resumeFile.upsert({
       where: { versionId: id },
-      create: { versionId: id, userId, data: bytes, filename, mimeType: file.type, size: file.size },
-      update: { data: bytes, filename, mimeType: file.type, size: file.size },
+      create: {
+        versionId: id,
+        userId,
+        data: bytes,
+        filename,
+        mimeType: "application/pdf",
+        size: bytes.length,
+      },
+      update: { data: bytes, filename, mimeType: "application/pdf", size: bytes.length },
     }),
     prisma.resumeVersion.update({ where: { id }, data: { source: "UPLOADED" } }),
   ]);
 
-  return NextResponse.json({ ok: true, filename, size: file.size }, { status: 201 });
+  return NextResponse.json({ ok: true, filename, size: bytes.length }, { status: 201 });
 }
 
 // DELETE /api/resume-versions/:id/pdf —— 删除该版本的 PDF，来源回 COMPOSED。

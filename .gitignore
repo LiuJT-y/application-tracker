@@ -3,3 +3,6 @@ node_modules
 .env
 .env.local
 next-env.d.ts
+
+# pdfjs worker：构建产物，由 scripts/copy-pdf-worker.mjs 在 dev/build 前自动从 node_modules 复制
+public/pdf.worker.min.mjs

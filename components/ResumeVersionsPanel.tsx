@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ResumeVersionDialog from "@/components/ResumeVersionDialog";
 import ResumePdfControl from "@/components/ResumePdfControl";
+import { validatePdf, uploadVersionPdf } from "@/lib/resume/pdfUpload";
 import { type ResumeVersionSummary } from "@/lib/types";
 
 const dim = { color: "var(--color-txt-dim)" } as const;
@@ -14,6 +15,10 @@ export default function ResumeVersionsPanel() {
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [editing, setEditing] = useState<ResumeVersionSummary | null>(null);
+  // 顶部「上传 PDF」：一步建一个上传式版本
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingNew, setUploadingNew] = useState(false);
+  const [uploadErr, setUploadErr] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -25,6 +30,36 @@ export default function ResumeVersionsPanel() {
   useEffect(() => {
     load();
   }, []);
+
+  // 顶部「上传 PDF」：选文件 → 新建一个同名版本 → 把 PDF 传上去 → 刷新。
+  async function onUploadNew(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const invalid = validatePdf(file);
+    if (invalid) {
+      setUploadErr(invalid);
+      return;
+    }
+    setUploadingNew(true);
+    setUploadErr(null);
+    try {
+      const name = file.name.replace(/\.pdf$/i, "").trim() || "上传的简历";
+      const res = await fetch("/api/resume-versions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, itemIds: [] }),
+      });
+      if (!res.ok) throw new Error("新建版本失败");
+      const { id } = await res.json();
+      await uploadVersionPdf(id, file);
+      await load();
+    } catch (err) {
+      setUploadErr(err instanceof Error ? err.message : "上传失败");
+    } finally {
+      setUploadingNew(false);
+    }
+  }
 
   function openCreate() {
     setEditing(null);
@@ -58,21 +93,47 @@ export default function ResumeVersionsPanel() {
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm" style={dim}>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="min-w-0 text-sm" style={dim}>
           // 从素材库条目组合不同版本，设默认 → 看板新建投递自动用它，AI 复盘也按它分析
         </p>
-        <button
-          onClick={openCreate}
-          className="rounded-lg px-3 py-1.5 text-sm font-medium transition-all"
-          style={{
-            color: "#04121a",
-            background: "var(--color-neon-cyan)",
-            boxShadow: "0 0 16px rgba(0,240,255,0.4)",
-          }}
-        >
-          + 新建版本
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {uploadErr && (
+            <span className="text-xs" style={{ color: "#FF2E97" }}>
+              {uploadErr}
+            </span>
+          )}
+          <input
+            ref={uploadInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            className="hidden"
+            onChange={onUploadNew}
+          />
+          {/* 上传 PDF：一步新建一个上传式版本 */}
+          <button
+            onClick={() => {
+              setUploadErr(null);
+              uploadInputRef.current?.click();
+            }}
+            disabled={uploadingNew}
+            className={`${secondaryBtn} rounded-lg border px-3 py-1.5 text-sm disabled:opacity-50`}
+            style={{ borderColor: "var(--color-line)", color: "var(--color-txt-dim)" }}
+          >
+            {uploadingNew ? "上传中…" : "↑ 上传 PDF"}
+          </button>
+          <button
+            onClick={openCreate}
+            className="rounded-lg px-3 py-1.5 text-sm font-medium transition-all"
+            style={{
+              color: "#04121a",
+              background: "var(--color-neon-cyan)",
+              boxShadow: "0 0 16px rgba(0,240,255,0.4)",
+            }}
+          >
+            + 新建版本
+          </button>
+        </div>
       </div>
 
       {loading ? (

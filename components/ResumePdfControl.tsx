@@ -2,11 +2,10 @@
 
 import { useRef, useState } from "react";
 import { type ResumeVersionSummary } from "@/lib/types";
+import { validatePdf, uploadVersionPdf } from "@/lib/resume/pdfUpload";
 
 const dim = { color: "var(--color-txt-dim)" } as const;
 const linkBtn = "rounded-md px-2 py-1 text-xs transition-colors";
-
-const MAX_BYTES = 4 * 1024 * 1024;
 
 function fmtSize(n: number): string {
   if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
@@ -40,29 +39,19 @@ export default function ResumePdfControl({
     if (!file) return;
 
     // 客户端先做一遍校验（更快反馈），服务端仍会再校验一次。
-    if (file.type !== "application/pdf") {
-      setErr("只接受 PDF 文件");
-      return;
-    }
-    if (file.size <= 0 || file.size > MAX_BYTES) {
-      setErr("文件需 >0 且 ≤4MB");
+    const invalid = validatePdf(file);
+    if (invalid) {
+      setErr(invalid);
       return;
     }
 
     setBusy(true);
     setErr(null);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch(previewUrl, { method: "POST", body: fd });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setErr(data.error ?? "上传失败");
-      } else {
-        onChanged();
-      }
-    } catch {
-      setErr("网络错误，上传失败");
+      await uploadVersionPdf(version.id, file);
+      onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "上传失败");
     } finally {
       setBusy(false);
     }

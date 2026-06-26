@@ -55,7 +55,13 @@ export default function ResumeItemDialog({
       .split(/[,，]/)
       .map((t) => t.trim())
       .filter(Boolean);
-    const payload = { ...form, tags };
+    // 正文按行拆成结构化要点 bullets（去掉行首 ◦/•/-/–/—/* 项目符号），与 description 同步保存。
+    // 分类型表单做之前，这里先让新建/编辑的条目也填上 bullets（为生成简历铺路）。
+    const bullets = form.description
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^\s*[◦•·\-–—*]+\s*/u, "").trim())
+      .filter(Boolean);
+    const payload = { ...form, tags, bullets };
 
     const url = isEdit ? `/api/resume-items/${item!.id}` : "/api/resume-items";
     const method = isEdit ? "PATCH" : "POST";

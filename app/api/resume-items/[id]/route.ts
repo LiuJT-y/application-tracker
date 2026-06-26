@@ -46,11 +46,16 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   }
   if ("org" in b) patch.org = str(b.org);
   if ("location" in b) patch.location = str(b.location);
+  if ("role" in b) patch.role = str(b.role);
+  if ("degree" in b) patch.degree = str(b.degree);
   if ("startDate" in b) patch.startDate = str(b.startDate);
   if ("endDate" in b) patch.endDate = str(b.endDate);
   if ("description" in b) patch.description = str(b.description);
   if ("link" in b) patch.link = str(b.link);
   if ("order" in b && Number.isFinite(b.order)) patch.order = Number(b.order);
+  if ("bullets" in b && Array.isArray(b.bullets)) {
+    patch.bullets = (b.bullets as unknown[]).map((t) => String(t).trim()).filter(Boolean);
+  }
   if ("tags" in b && Array.isArray(b.tags)) {
     patch.tags = (b.tags as unknown[]).map((t) => String(t).trim()).filter(Boolean);
   }

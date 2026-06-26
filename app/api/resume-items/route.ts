@@ -17,9 +17,8 @@ function pickItemData(body: Record<string, unknown>) {
   const type = RESUME_ITEM_TYPES.includes(body.type as (typeof RESUME_ITEM_TYPES)[number])
     ? (body.type as (typeof RESUME_ITEM_TYPES)[number])
     : ("EXPERIENCE" as const);
-  const tags = Array.isArray(body.tags)
-    ? (body.tags as unknown[]).map((t) => String(t).trim()).filter(Boolean)
-    : [];
+  const strArr = (v: unknown) =>
+    Array.isArray(v) ? (v as unknown[]).map((t) => String(t).trim()).filter(Boolean) : [];
   const str = (v: unknown) => {
     const s = typeof v === "string" ? v.trim() : "";
     return s ? s : null;
@@ -29,10 +28,13 @@ function pickItemData(body: Record<string, unknown>) {
     title: typeof body.title === "string" ? body.title.trim() : "",
     org: str(body.org),
     location: str(body.location),
+    role: str(body.role),
+    degree: str(body.degree),
     startDate: str(body.startDate),
     endDate: str(body.endDate),
     description: str(body.description),
-    tags,
+    bullets: strArr(body.bullets),
+    tags: strArr(body.tags),
     link: str(body.link),
     order: Number.isFinite(body.order) ? Number(body.order) : 0,
   };

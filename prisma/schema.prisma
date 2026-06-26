@@ -71,9 +71,25 @@ model User {
   resumeItems        ResumeItem[]
   resumeVersionItems ResumeVersionItem[]
   resumeFiles        ResumeFile[]
+  resumeProfile      ResumeProfile?
   statusEvents       StatusEvent[]
   reviews            InterviewReview[]
   scheduleItems      ScheduleItem[]
+}
+
+// 个人信息：每个用户全局唯一一条（userId 唯一），独立于 ResumeItem 总表管理。
+// 生成简历时作为抬头（姓名/联系方式/一句话意向）。
+model ResumeProfile {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  name      String?
+  email     String?
+  phone     String?
+  location  String?
+  github    String? // GitHub 主页
+  linkedin  String? // 领英主页
+  updatedAt DateTime @updatedAt
 }
 
 model Application {
@@ -223,9 +239,12 @@ model ResumeItem {
   title       String // 标题：项目名 / 公司名 / 学校
   org         String? // 机构 / 公司 / 学校
   location    String?
+  role        String? // 项目/经历用：角色，如「独立研究 / 后端开发」
+  degree      String? // 教育用：学位/专业，如「计算机科学硕士」
   startDate   String? // "2024.09"
   endDate     String? // "2025.06" / "至今"
-  description String?        @db.Text // 正文 / 要点
+  description String?        @db.Text // 旧的「正文/要点」一段文本；已迁移进 bullets，保留过渡用
+  bullets     String[]       @default([]) // 结构化要点：一条一个（对应简历里每个 ◦ 列表项）
   tags        String[]       @default([])
   link        String?
   order       Int            @default(0)
