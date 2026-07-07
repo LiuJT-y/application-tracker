@@ -27,10 +27,10 @@ const ICON = {
 } as const;
 
 const NAV: { href: string; label: string; icon: keyof typeof ICON }[] = [
+  { href: "/board", label: "投递看板", icon: "board" },
   { href: "/resumes", label: "简历管理", icon: "resumes" },
   { href: "/insights", label: "数据洞察", icon: "insights" },
   { href: "/review", label: "AI 复盘", icon: "review" },
-  { href: "/board", label: "投递看板", icon: "board" },
 ];
 
 function NavIcon({ name }: { name: keyof typeof ICON }) {
