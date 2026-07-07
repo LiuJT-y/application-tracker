@@ -75,6 +75,37 @@ model User {
   statusEvents       StatusEvent[]
   reviews            InterviewReview[]
   scheduleItems      ScheduleItem[]
+  passwordResetTokens PasswordResetToken[]
+  loginCodes          LoginCode[]
+}
+
+// 忘记密码：一次性重置 token。存 sha256(明文 token)，明文只出现在发给用户的链接里，
+// 即使库泄露也无法用来重置。30 分钟过期，用过即作废（usedAt）。
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  tokenHash String   @unique // sha256(明文 token)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// 邮箱验证码登录：6 位一次性码。存 sha256(码)，10 分钟过期，attempts 超 5 次作废。
+// 靠「短过期 + 限次 + 限频」补 6 位码熵低的短板。
+model LoginCode {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  codeHash  String // sha256(6 位码)
+  expiresAt DateTime
+  attempts  Int      @default(0) // 校验失败计数，超阈值作废
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 // 个人信息：每个用户全局唯一一条（userId 唯一），独立于 ResumeItem 总表管理。

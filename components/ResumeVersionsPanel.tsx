@@ -117,10 +117,23 @@ export default function ResumeVersionsPanel() {
               uploadInputRef.current?.click();
             }}
             disabled={uploadingNew}
-            className={`${secondaryBtn} rounded-lg border px-3 py-1.5 text-sm disabled:opacity-50`}
-            style={{ borderColor: "var(--color-line)", color: "var(--color-txt-dim)" }}
+            className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors hover:border-[var(--color-neon-cyan)] hover:text-[var(--color-neon-cyan)] disabled:opacity-50"
+            style={{ borderColor: "var(--color-line)", color: "var(--color-txt)" }}
           >
-            {uploadingNew ? "上传中…" : "↑ 上传 PDF"}
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+            >
+              <path d="M12 16V4" />
+              <path d="m7 9 5-5 5 5" />
+              <path d="M5 16v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
+            </svg>
+            {uploadingNew ? "上传中…" : "上传 PDF"}
           </button>
           <button
             onClick={openCreate}

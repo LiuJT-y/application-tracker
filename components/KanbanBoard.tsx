@@ -22,6 +22,27 @@ import {
 import ApplicationCard from "./ApplicationCard";
 import AddApplicationDialog from "./AddApplicationDialog";
 import MetricsBar from "./MetricsBar";
+import BoardFilter, {
+  EMPTY_FILTERS,
+  NONE_VERSION,
+  type BoardFilters,
+  type BoardSort,
+} from "./BoardFilter";
+
+// 优先级排序：秩越大越靠前（降序）；无优先级的一律沉底。
+const PRIORITY_RANK: Record<string, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+
+function sortByPriority(list: Application[], sort: BoardSort): Application[] {
+  if (sort === "default") return list;
+  const dir = sort === "priority-desc" ? -1 : 1;
+  const ranked = list.filter((a) => PRIORITY_RANK[a.priority] != null);
+  const unranked = list.filter((a) => PRIORITY_RANK[a.priority] == null);
+  // sort 稳定：同级保持原顺序
+  const sorted = [...ranked].sort(
+    (a, b) => (PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]) * dir
+  );
+  return [...sorted, ...unranked];
+}
 
 function DroppableColumn({
   status,
@@ -176,6 +197,11 @@ export default function KanbanBoard() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editingApp, setEditingApp] = useState<Application | null>(null);
+  // 搜索：按 公司 / 职位 / 城市 即时过滤（纯前端，不动后端）
+  const [query, setQuery] = useState("");
+  // 筛选（渠道/优先级/城市/简历版本）+ 排序（优先级升降），与搜索叠加 AND
+  const [filters, setFilters] = useState<BoardFilters>(EMPTY_FILTERS);
+  const [sort, setSort] = useState<BoardSort>("default");
   // 落入新列的边框确认闪烁
   const [flashCol, setFlashCol] = useState<Status | null>(null);
   // 「已结束」列默认折叠成窄条
@@ -238,6 +264,34 @@ export default function KanbanBoard() {
 
   const activeApp = apps.find((a) => a.id === activeId) ?? null;
 
+  // 搜索匹配：大小写不敏感子串，命中 公司 / 职位 / 城市 任一即可（不搜 JD）。
+  const q = query.trim().toLowerCase();
+  const searchMatch = (a: Application) =>
+    !q ||
+    a.company.toLowerCase().includes(q) ||
+    a.position.toLowerCase().includes(q) ||
+    (a.city ?? "").toLowerCase().includes(q);
+
+  // 筛选匹配：维度内 OR、维度间 AND；空维度不约束。
+  const filterMatch = (a: Application) =>
+    (filters.channels.length === 0 || filters.channels.includes(a.channel)) &&
+    (filters.priorities.length === 0 || filters.priorities.includes(a.priority)) &&
+    (filters.cities.length === 0 || (a.city != null && filters.cities.includes(a.city))) &&
+    (filters.versions.length === 0 ||
+      filters.versions.includes(a.resumeVersionName ?? NONE_VERSION));
+
+  // 搜索 AND 筛选
+  const keep = (a: Application) => searchMatch(a) && filterMatch(a);
+  const totalMatches = apps.filter(keep).length;
+  // 搜索或筛选有任一激活（排序不减少结果，不参与空状态判定）
+  const hasQueryOrFilter =
+    q.length > 0 ||
+    filters.channels.length +
+      filters.priorities.length +
+      filters.cities.length +
+      filters.versions.length >
+      0;
+
   return (
     <>
       <div className="mb-6 flex items-center justify-between gap-4">
@@ -254,7 +308,7 @@ export default function KanbanBoard() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {/* 搜索框（纯视觉占位，后续接过滤逻辑） */}
+          {/* 搜索框：按 公司 / 职位 / 城市 即时过滤看板卡片（列头计数仍为总数） */}
           <div className="relative hidden sm:block">
             <span
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
@@ -267,24 +321,38 @@ export default function KanbanBoard() {
             </span>
             <input
               type="text"
-              disabled
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setQuery("");
+              }}
               placeholder="搜索职位 / 公司"
-              className="w-52 rounded-lg border bg-[#0d1322] py-2 pl-9 pr-3 text-sm text-[#E6F1FF] placeholder:text-[#8B9CB8] transition-colors focus:border-[var(--color-accent)]"
+              className="w-52 rounded-lg border bg-[#0d1322] py-2 pl-9 pr-8 text-sm text-[#E6F1FF] placeholder:text-[#8B9CB8] transition-colors focus:border-[var(--color-accent)]"
               style={{ borderColor: "rgba(139,156,184,0.2)" }}
             />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="清除搜索"
+                className="absolute right-2 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded transition-colors hover:text-[var(--color-txt)]"
+                style={{ color: "var(--color-txt-dim)" }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            )}
           </div>
-          {/* 筛选（纯视觉占位） */}
-          <button
-            type="button"
-            title="筛选"
-            aria-label="筛选"
-            className="grid h-9 w-9 place-items-center rounded-lg border transition-colors"
-            style={{ borderColor: "var(--color-line)", color: "var(--color-txt-dim)" }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-              <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-            </svg>
-          </button>
+          {/* 筛选 + 排序 */}
+          <BoardFilter
+            apps={apps}
+            filters={filters}
+            onFiltersChange={setFilters}
+            sort={sort}
+            onSortChange={setSort}
+          />
           <button
             onClick={() => setShowAdd(true)}
             className="rounded-lg px-3.5 py-2 text-sm font-medium transition-all"
@@ -314,6 +382,11 @@ export default function KanbanBoard() {
         >
           {/* 六列等宽自适应：常规桌面(≥1280)六列一屏平分；窄屏退化成 3 列 / 2 列换行。
               「已结束」折叠时 xl 下把末列压成 56px 窄条，空间让给其他列。 */}
+          {hasQueryOrFilter && totalMatches === 0 && (
+            <p className="mb-3 text-sm" style={{ color: "var(--color-txt-dim)" }}>
+              // 没有符合条件的投递 —— 调整搜索或筛选试试
+            </p>
+          )}
           <div
             className={`grid grid-cols-2 gap-3 pb-4 md:grid-cols-3 ${
               rejectedCollapsed
@@ -323,6 +396,8 @@ export default function KanbanBoard() {
           >
             {STATUS_ORDER.map((status) => {
               const colApps = apps.filter((a) => a.status === status);
+              // 列头计数保留总数；被搜索/筛选掉的卡片只是不渲染，再按排序显示。
+              const visible = sortByPriority(colApps.filter(keep), sort);
               const rejected = status === "REJECTED";
               return (
                 <DroppableColumn
@@ -337,7 +412,7 @@ export default function KanbanBoard() {
                       : undefined
                   }
                 >
-                  {colApps.map((a) => (
+                  {visible.map((a) => (
                     <DraggableCard
                       key={a.id}
                       app={a}

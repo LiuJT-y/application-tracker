@@ -15,7 +15,7 @@ Next.js 16 (App Router) · React 19 · TypeScript · Prisma 6 + Neon Postgres ·
 ## 项目结构
 
 ```
-prisma/schema.prisma          9 张核心表 + 枚举（含 ResumeItem 素材库 / ResumeVersionItem 关联表 / ResumeFile PDF 字节 / ResumeProfile 个人信息）
+prisma/schema.prisma          核心表 + 枚举（含 ResumeItem 素材库 / ResumeVersionItem 关联表 / ResumeFile PDF 字节 / ResumeProfile 个人信息 / PasswordResetToken 重置 token / LoginCode 邮箱登录码）
 prisma/seed.ts                示例数据
 prisma/migrate-bullets.ts     一次性迁移：ResumeItem.description（旧正文）→ bullets[]（幂等）
 lib/prisma.ts                 Prisma client 单例
@@ -56,14 +56,22 @@ components/AddApplicationDialog.tsx  新建/编辑岗位（含简历版本下拉
 components/ReviewPanel.tsx    复盘结构化表单 + 评分展示 + 历史列表
 
 —— 全站布局壳（赛博 HUD + 紫色高亮 accent）——
-components/AppShell.tsx        挂在 app/layout.tsx：左 Sidebar + 右 main(ml-[220px])；/login·/register 不套壳（BARE_PAGES，与 proxy 的 AUTH_PAGES 一致）
+components/AppShell.tsx        挂在 app/layout.tsx：左 Sidebar + 右 main(ml-[220px])；/login·/register·/forgot-password·/reset-password 不套壳（BARE_PAGES，与 proxy 的 PUBLIC_PAGES 一致）
 components/Sidebar.tsx         左侧固定竖向侧边栏：Logo「OfferGate」+ 带图标导航（usePathname 高亮，紫胶囊+左光条）+ 底部用户卡（/api/auth/me）/设置/退出（并入原 UserMenu 逻辑，UserMenu 已删）
 
 —— 多用户 + 用户自带 LLM key ——
 lib/auth/{hash,jwt,session}.ts  bcrypt / jose 签发校验 / cookie→userId（getCurrentUserId·getRequestUserId）
-proxy.ts                      页面守卫（Next 16 proxy 约定）：未登录跳 /login，已登录访问登录页跳 /board
+lib/auth/resetToken.ts        生成明文重置 token / 6 位登录码 + sha256 哈希（明文只发给用户，库里只存哈希）
+proxy.ts                      页面守卫（Next 16 proxy 约定）：PUBLIC_PAGES 放行未登录（登录/注册/忘记密码/重置密码）；REDIRECT_WHEN_AUTHED 只把已登录用户从 /login·/register 弹到 /board（重置页不弹）
 app/api/auth/                 register / login / logout / me
-app/login·register/page.tsx   登录 / 注册（共用 components/AuthForm.tsx，HUD 紫色 accent）
+app/api/auth/forgot-password/ POST 发起密码重置：查用户→建 30min 一次性 token（存哈希）→发重置链接；防枚举（无论邮箱是否存在都返通用成功）
+app/api/auth/reset-password/  POST 校验 token（未过期/未用）→ bcrypt 改密 → 事务作废该 token 及该用户其它未用 token；不自动登录
+app/api/auth/login-code/request/  POST 发邮箱验证码：6 位码存哈希、10min 过期、同邮箱 60s 限频；防枚举
+app/api/auth/login-code/verify/   POST 校验码（10min/5 次失败作废/单用）→ 签 JWT 写 session cookie（登录）
+app/login·register/page.tsx   登录 / 注册（共用 components/AuthForm.tsx，HUD 紫色 accent）；登录页含「密码/验证码」切换 + 忘记密码入口
+app/forgot-password/page.tsx  输邮箱页：提交后固定提示「如果该邮箱已注册，重置链接已发送」（防枚举）
+app/reset-password/page.tsx   从 query 读 token → 设新密码（含确认）→ 引导回登录
+lib/email.ts                  邮件发送：Resend（配 RESEND_API_KEY 才真发）+ dev 环境 console.log 打印链接/验证码兜底；sendPasswordResetEmail / sendLoginCodeEmail
 lib/llmConfig.ts              LLM key localStorage 读写 + 请求头（x-llm-*）
 app/settings/page.tsx         填 LLM key（存 localStorage）+ 展示插件 token
 app/api/ai/test/              测试 LLM 连接
@@ -85,6 +93,9 @@ app/api/ai/test/              测试 LLM 连接
 - **PDF 渲染走 PDF.js 且只在客户端**:统一用 `lib/pdf/render.ts`(`"use client"` + dynamic import `pdfjs-dist`),别在别处 import pdfjs(会进首屏包)、别用 `<embed>/<iframe>`。worker 必须同源(`/pdf.worker.min.mjs`,由 `scripts/copy-pdf-worker.mjs` 复制,**不准从外部 CDN 加载**——大陆本机要能用)。新增/升级 `pdfjs-dist` 后 `public/` 的 worker 会在 `dev`/`build` 自动重新复制。画廊/预览要懒加载(进视口才渲染)+ 缓存,别一次渲染所有页。
 - **个人信息全局唯一、单独管理**:`ResumeProfile` 每用户至多一条(`userId @unique`,`PUT /api/resume-profile` 走 upsert),**不进 `ResumeItem` 总表**,在 `/resumes` 顶部卡片编辑。生成简历时它是抬头。
 - **简历条目要点用 `bullets String[]`(一条一个)**,为生成简历的结构化铺路;旧的单段 `description` 仅过渡保留(已用 `prisma/migrate-bullets.ts` 迁移),新写入走 `bullets`,**别再往 `description` 塞要点**。`role`(项目/经历角色)、`degree`(教育学位/专业)是类型特有可选字段。
+- **忘记密码 / 邮箱验证码登录都走「防枚举」**:无论邮箱是否注册,`forgot-password` 与 `login-code/request` 都返回同一句通用成功,不泄露账号是否存在(login 也是同一句「邮箱或密码错误」)。
+- **一次性凭证只存哈希不存明文**:重置 token / 6 位登录码入库前统一过 `lib/auth/resetToken.ts` 的 `hashToken`(sha256),明文只出现在发给用户的链接/邮件里。重置 token 30min 过期、单用;登录码 10min 过期、5 次失败作废、单用、同邮箱 60s 限频。改密/校验成功要标 `usedAt` 并作废同用户其它未用凭证。
+- **发邮件统一走 `lib/email.ts`**:配了 `RESEND_API_KEY` 才真发(Resend);没配则 dev 环境 `console.log` 打印链接/验证码兜底,方便本地测试。别在别处直接调 Resend。
 - 中文 UI,代码注释中文 OK。
 - **全站导航统一在 `components/Sidebar.tsx`(左侧固定栏)**:新增页面别再各自写顶栏 nav / 用户菜单,导航项加在 `Sidebar` 的 `NAV` 数组即可;页面只留标题区(`✦` + 大标题 + `// …` 副标题)。布局由 `AppShell` 包裹(挂在 `app/layout.tsx`),`/login`·`/register` 走 `BARE_PAGES` 不套壳。
 - **紫色强调 `--color-accent`(#7b5cff)只做点睛**(侧边栏高亮 / 主按钮 / 标题 `✦`),cyan 仍是基底、列状态色仍走 `STATUS_META`(唯一真源不变)。

@@ -5,7 +5,7 @@ import Sidebar from "./Sidebar";
 
 // 全站布局壳：左侧固定侧边栏 + 右侧主内容。
 // 登录/注册页不套壳（与 proxy.ts 的 AUTH_PAGES 一致），它们自带居中布局。
-const BARE_PAGES = ["/login", "/register"];
+const BARE_PAGES = ["/login", "/register", "/forgot-password", "/reset-password"];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

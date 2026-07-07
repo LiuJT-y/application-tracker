@@ -14,17 +14,39 @@ export function validatePdf(file: File): string | null {
 }
 
 // 把 PDF 以原始字节上传到某个版本；失败抛错（带服务端返回的文案）。
-export async function uploadVersionPdf(versionId: string, file: File): Promise<void> {
-  const res = await fetch(`/api/resume-versions/${versionId}/pdf`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/pdf",
-      "x-filename": encodeURIComponent(file.name),
-    },
-    body: file,
+// 传了 onProgress 就走 XHR 以拿到真实上传进度（0-100）；否则行为等价于 fetch。
+export async function uploadVersionPdf(
+  versionId: string,
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `/api/resume-versions/${versionId}/pdf`);
+    xhr.setRequestHeader("Content-Type", "application/pdf");
+    xhr.setRequestHeader("x-filename", encodeURIComponent(file.name));
+
+    xhr.upload.onprogress = (ev) => {
+      if (onProgress && ev.lengthComputable) {
+        onProgress(Math.round((ev.loaded / ev.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100);
+        resolve();
+        return;
+      }
+      let msg = "上传失败";
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (data?.error) msg = data.error;
+      } catch {
+        /* 非 JSON 响应，用默认文案 */
+      }
+      reject(new Error(msg));
+    };
+    xhr.onerror = () => reject(new Error("网络错误，上传失败"));
+    xhr.send(file);
   });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error ?? "上传失败");
-  }
 }

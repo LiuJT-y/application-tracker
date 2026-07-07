@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -21,8 +21,6 @@ const T = {
     tagline: "Your Journey, Our AI.",
     login: { head: "Welcome ", accent: "back!", sub: "Sign in to continue your journey" },
     register: { head: "Create ", accent: "account!", sub: "Create an account to start your journey" },
-    google: "Continue with Google",
-    or: "or",
     nameLabel: "Name (optional)",
     namePh: "How should we call you",
     emailLabel: "Email",
@@ -31,6 +29,15 @@ const T = {
     pwPhLogin: "Enter your password",
     pwPhReg: "At least 6 characters",
     forgot: "Forgot password?",
+    pwLoginTab: "Password",
+    codeLoginTab: "Email code",
+    codeLabel: "Verification code",
+    codePh: "6-digit code",
+    sendCode: "Send code",
+    sending: "Sending…",
+    resendIn: (s: number) => `Resend (${s}s)`,
+    resend: "Resend",
+    codeSentHint: "If the email is registered, a code has been sent.",
     submitLogin: "Log In",
     submitReg: "Sign Up",
     busy: "Processing…",
@@ -50,8 +57,6 @@ const T = {
     tagline: "你的旅程，AI 同行。",
     login: { head: "欢迎", accent: "回来!", sub: "登录以继续你的求职旅程" },
     register: { head: "创建", accent: "账号!", sub: "注册一个账号，开启你的求职旅程" },
-    google: "使用 Google 继续",
-    or: "或",
     nameLabel: "昵称（可选）",
     namePh: "怎么称呼你",
     emailLabel: "邮箱",
@@ -60,6 +65,15 @@ const T = {
     pwPhLogin: "请输入密码",
     pwPhReg: "至少 6 位",
     forgot: "忘记密码？",
+    pwLoginTab: "密码登录",
+    codeLoginTab: "验证码登录",
+    codeLabel: "验证码",
+    codePh: "6 位验证码",
+    sendCode: "发送验证码",
+    sending: "发送中…",
+    resendIn: (s: number) => `重新发送 (${s}s)`,
+    resend: "重新发送",
+    codeSentHint: "如果该邮箱已注册，验证码已发送。",
     submitLogin: "登录",
     submitReg: "注册",
     busy: "处理中…",
@@ -100,6 +114,31 @@ export default function AuthForm({ mode }: { mode: Mode }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // —— 验证码登录（仅登录模式）——
+  const [method, setMethod] = useState<"password" | "code">("password");
+  const [code, setCode] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
+  const [cooldown, setCooldown] = useState(0); // 重发倒计时（秒）
+  const isCodeLogin = isLogin && method === "code";
+
+  // 倒计时递减
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  const genericError = () =>
+    lang === "zh" ? "操作失败，请重试" : "Something went wrong, try again";
+
+  // 成功登录后跳转
+  function goAfterAuth() {
+    const redirect = params.get("redirect") || "/board";
+    router.replace(redirect);
+    router.refresh();
+  }
+
+  // 密码登录 / 注册
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -113,14 +152,53 @@ export default function AuthForm({ mode }: { mode: Mode }) {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? (lang === "zh" ? "操作失败，请重试" : "Something went wrong, try again"));
+      setError(data.error ?? genericError());
       setBusy(false);
       return;
     }
-    // 成功 → 回到来源页或看板；refresh 让 layout/proxy 重新取登录态。
-    const redirect = params.get("redirect") || "/board";
-    router.replace(redirect);
-    router.refresh();
+    goAfterAuth();
+  }
+
+  // 发送邮箱验证码（防枚举：后端一律成功，前端固定提示）
+  async function requestCode() {
+    if (!email || !email.includes("@")) {
+      setError(lang === "zh" ? "请输入正确的邮箱" : "Enter a valid email");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const res = await fetch("/api/auth/login-code/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? genericError());
+      return;
+    }
+    setCodeSent(true);
+    setCooldown(60);
+  }
+
+  // 校验验证码登录
+  async function submitCode(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const res = await fetch("/api/auth/login-code/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, code }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? genericError());
+      setBusy(false);
+      return;
+    }
+    goAfterAuth();
   }
 
   return (
@@ -196,26 +274,35 @@ export default function AuthForm({ mode }: { mode: Mode }) {
             <p className="mt-2 text-sm text-[#6B7280]">{head.sub}</p>
           </div>
 
-          {/* Google（暂未接入，视觉占位 + 禁用） */}
-          <button
-            type="button"
-            disabled
-            title={lang === "zh" ? "Google 登录暂未接入" : "Google sign-in not available yet"}
-            className="mt-7 flex w-full items-center justify-center gap-2.5 rounded-xl border border-[#E2E5EC] bg-white py-3 text-sm font-medium text-[#374151] transition-colors disabled:cursor-not-allowed"
-          >
-            <GoogleIcon />
-            {t.google}
-          </button>
-
-          {/* or 分隔 */}
-          <div className="my-5 flex items-center gap-3">
-            <span className="h-px flex-1 bg-[#E2E5EC]" />
-            <span className="text-xs text-[#9CA3AF]">{t.or}</span>
-            <span className="h-px flex-1 bg-[#E2E5EC]" />
-          </div>
+          {/* 登录方式切换：密码 / 验证码 */}
+          {isLogin && (
+            <div className="mt-7 grid grid-cols-2 gap-1 rounded-xl bg-[#EDEEF3] p-1">
+              {(["password", "code"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => {
+                    setMethod(m);
+                    setError(null);
+                  }}
+                  className="rounded-lg py-2 text-sm font-medium transition-colors"
+                  style={
+                    method === m
+                      ? { background: "#fff", color: "var(--color-accent)", boxShadow: "0 1px 3px rgba(20,20,50,0.1)" }
+                      : { color: "#6B7280" }
+                  }
+                >
+                  {m === "password" ? t.pwLoginTab : t.codeLoginTab}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* 表单 */}
-          <form onSubmit={submit} className="space-y-4">
+          <form
+            onSubmit={isCodeLogin ? submitCode : submit}
+            className={`${isLogin ? "mt-4" : "mt-7"} space-y-4`}
+          >
             {!isLogin && (
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-[#374151]">
@@ -257,57 +344,99 @@ export default function AuthForm({ mode }: { mode: Mode }) {
               </div>
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-[#374151]">
-                {t.pwLabel}
-              </label>
-              <div className="relative">
-                <FieldIcon>
-                  <rect x="4" y="11" width="16" height="10" rx="2" />
-                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                </FieldIcon>
-                <input
-                  className={inputCls}
-                  type={showPw ? "text" : "password"}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={isLogin ? t.pwPhLogin : t.pwPhReg}
-                  autoComplete={isLogin ? "current-password" : "new-password"}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw((v) => !v)}
-                  aria-label={showPw ? "隐藏密码" : "显示密码"}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] transition-colors hover:text-[#6B7280]"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
-                    {showPw ? (
-                      <>
-                        <path d="M2 2l20 20M6.7 6.7A10.5 10.5 0 0 0 1 12s4 7 11 7a10 10 0 0 0 5.3-1.5M9.9 4.2A10.8 10.8 0 0 1 12 4c7 0 11 8 11 8a18 18 0 0 1-2.2 3.2" />
-                        <path d="M9.5 9.5a3 3 0 0 0 4.2 4.2" />
-                      </>
-                    ) : (
-                      <>
-                        <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </>
-                    )}
-                  </svg>
-                </button>
+            {/* 密码字段：密码登录 / 注册时显示；验证码登录时隐藏 */}
+            {!isCodeLogin && (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[#374151]">
+                  {t.pwLabel}
+                </label>
+                <div className="relative">
+                  <FieldIcon>
+                    <rect x="4" y="11" width="16" height="10" rx="2" />
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                  </FieldIcon>
+                  <input
+                    className={inputCls}
+                    type={showPw ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={isLogin ? t.pwPhLogin : t.pwPhReg}
+                    autoComplete={isLogin ? "current-password" : "new-password"}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw((v) => !v)}
+                    aria-label={showPw ? "隐藏密码" : "显示密码"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] transition-colors hover:text-[#6B7280]"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
+                      {showPw ? (
+                        <>
+                          <path d="M2 2l20 20M6.7 6.7A10.5 10.5 0 0 0 1 12s4 7 11 7a10 10 0 0 0 5.3-1.5M9.9 4.2A10.8 10.8 0 0 1 12 4c7 0 11 8 11 8a18 18 0 0 1-2.2 3.2" />
+                          <path d="M9.5 9.5a3 3 0 0 0 4.2 4.2" />
+                        </>
+                      ) : (
+                        <>
+                          <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </>
+                      )}
+                    </svg>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
-            {isLogin && (
+            {/* 验证码字段：验证码登录时显示，右侧「发送/重发」按钮 */}
+            {isCodeLogin && (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[#374151]">
+                  {t.codeLabel}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    className={inputCls}
+                    inputMode="numeric"
+                    maxLength={6}
+                    required
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder={t.codePh}
+                    autoComplete="one-time-code"
+                  />
+                  <button
+                    type="button"
+                    onClick={requestCode}
+                    disabled={busy || cooldown > 0}
+                    className="shrink-0 whitespace-nowrap rounded-xl border border-[#E2E5EC] bg-white px-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                    style={{ color: "var(--color-accent)" }}
+                  >
+                    {cooldown > 0
+                      ? t.resendIn(cooldown)
+                      : busy
+                        ? t.sending
+                        : codeSent
+                          ? t.resend
+                          : t.sendCode}
+                  </button>
+                </div>
+                {codeSent && (
+                  <p className="mt-1.5 text-xs text-[#6B7280]">{t.codeSentHint}</p>
+                )}
+              </div>
+            )}
+
+            {/* 忘记密码：仅密码登录模式显示 */}
+            {isLogin && !isCodeLogin && (
               <div className="flex justify-end">
-                <button
-                  type="button"
-                  title={lang === "zh" ? "暂未开放" : "Not available yet"}
+                <Link
+                  href="/forgot-password"
                   className="text-sm font-medium"
                   style={{ color: "var(--color-accent)" }}
                 >
                   {t.forgot}
-                </button>
+                </Link>
               </div>
             )}
 
@@ -420,14 +549,3 @@ function FieldIcon({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Google 多色 G
-function GoogleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5">
-      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
-      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
-      <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z" />
-      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
-    </svg>
-  );
-}
